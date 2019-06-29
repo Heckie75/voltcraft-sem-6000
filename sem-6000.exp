@@ -80,13 +80,16 @@ set HANDLE(notification)       46
 
 array set aliases              {}
 
-set sem(connected)             0
-set sem(authorized)            0
 set sem(mac)                   ""
 set sem(pin)                   ""
 set sem(alias)                 ""
 set sem(name)                  ""
+
+set sem(connected)             0
+set sem(authorized)            0
 set sem(power)                 -1
+set sem(sync)                  -1
+
 
 # prints help output
 proc help { argv } {
@@ -226,6 +229,15 @@ proc decimal_to_hex { d } {
   }
 
   return $h
+
+}
+
+
+
+
+proc current_datetime {} {
+
+  return [ clock format [ clock seconds ] -format "%Y %m %d %H %M %S" ]
 
 }
 
@@ -566,6 +578,67 @@ proc req_reset_pin {} {
 
 
 
+proc req_sync {} {
+
+  global REQ_COMMAND
+  global INIT
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tSynchronize SEM"
+
+  set datetime [ current_datetime ]
+
+  # Byte 1 - 2: Switch command, 0x0300
+  lappend bytes 1
+  lappend bytes 0
+
+  # Byte 3: Seconds
+  lappend bytes [ lindex $datetime 5 ]
+
+  # Byte 4: Minutes
+  lappend bytes [ lindex $datetime 4 ]
+
+  # Byte 5: Hour of day
+  lappend bytes [ lindex $datetime 3 ]
+
+  # Byte 6: Day in month
+  lappend bytes [ lindex $datetime 2 ]
+
+  # Byte 7: Month
+  lappend bytes [ lindex $datetime 1 ]
+
+  # Byte 8 - 9: Year
+  lappend bytes [ expr [ lindex $datetime 0 ] >>  8 ]
+  lappend bytes [ expr [ lindex $datetime 0 ] & 255 ]
+
+  # Byte 10 - 11: 0x0000
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 3 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 0 } {
+
+    log "INFO:\tSEM successfully synchronized"
+    set sem(sync) 1
+    return 0
+
+  } else {
+
+    log "ERROR:\Synchronization of SEM failed"
+    return -1
+
+  }
+
+}
+
+
+
+
 proc req_switch { s } {
 
   global REQ_COMMAND
@@ -621,6 +694,7 @@ proc do_command { command } {
     ^sync$ {
 
       init 0
+      req_sync
 
     }
     ^on$ {

@@ -95,20 +95,29 @@ Notification handle = 0x002e value: 0f 04 03 00 00 04 ff ff
 
 
 # sync time
+```
 char-write-req 0x2b 0f0c010029180a160607e3000053ffff
-                      |   | | | | | | | | |   | + always ffff
-                      |   | | | | | | | | |   + chechsum 1 - 12 & 255
-                      |   | | | | | | | | + always 0000
-                      |   | | | | | | +-+ year, high-byte, low-byte
-                      |   | | | | | + month
-                      |   | | | | + day of month
-                      |   | | | + hour
-                      |   | | + minute
-                      |   | + Seconds 
-                      +---+ Sync time command
+                    | | |   | | | | | | | |   | + always ffff
+                    | | |   | | | | | | | |   + checksum 1 - 12 & 255
+                    | | |   | | | | | | | + always 0000
+                    | | |   | | | | | +-+ year, high-byte, low-byte
+                    | | |   | | | | + month
+                    | | |   | | | + day of month
+                    | | |   | | + hour
+                    | | |   | + minute
+                    | | |   + Seconds 
+                    | | + Set datetime command, 0x0100
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
 
 Notification handle = 0x002e value: 0f 04 01 00 00 02 ff ff
-
+                                    |  |  |     |  |  |  + static end sequence of message, 0xffff
+                                    |  |  |     |  + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     + Success
+                                    |  |  + Set datetime command, 0x0100
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
 
 # request configuration
 char-write-req 0x2b 0f051600000017ffff
