@@ -6,66 +6,151 @@ https://www.revogi.com/smart-power/power-plug-eu/#section0
 https://git.geekify.de/sqozz/sem6000/src/commit/3673e31ffcd1ceaed6969dafb0f6dd967c253d11/sem6000.py
 
 
+# Login
+char-write-req 0x2b 0f0c170000000000000000000018ffff
+                        | |   |     | |     | | +--+ always ffff
+                        | |   |     | |     | + checksum
+                        | |   |     | +-----+ always 00000000
+                        | |   +-----+ Pin
+                        | |        
+                        | + 0000
+                        + Login command
+                                    0  1  2  3  4  5  6  7
+Notification handle = 0x002e value: 0f 06 17 00 00 00 00 18 ff ff
+                                                + 0 = success, 1 = success, 2 = ???
+
+# Change password 
+char-write-req 0x2b 0f0c170000010203040000000022ffff
+                      | | | | |     | |     | | + always ffff
+                      | | | | |     | |     | + checksum
+                      | | | | |     | +-----+ old PIN
+                      | | | | +-----+ new PIN
+                      | | +-+ always 0001
+                      +-+ Change password command
+
+# Force password to "0000"
+char-write-req 0x2b 0f0c17000200000000000000001affff
+                      | | | | |     | |     | | + always ffff
+                      | | | | |     | |     | + checksum
+                      | | | | |     | +-----+ old PIN
+                      | | | | +-----+ new PIN
+                      | | +-+ always 0002 (!)
+                      +-+ Change password command
+
+Notification handle = 0x002e value: 0f 06 17 00 00 02 00 1a ff ff
+                                                   + 0 = success, 1 = success, 2 = ???
+
+
+# Switch on / off
+char-write-req 0x2b 0f06030001000005ffff -> turn on 
+char-write-req 0x2b 0f06030000000004ffff -> turn off
+                      |  |  |     |  
+                      |  |  |     + Checksum
+                      |  |  + Power: 1 = on, 0 = off 
+                      |  |
+                      +--+ Switch command
+
+Notification handle = 0x002e value: 0f 04 03 00 00 04 ff ff
+
+# sync time
+char-write-req 0x2b 0f0c010029180a160607e3000053ffff
+                      |   | | | | | | | | |   | + always ffff
+                      |   | | | | | | | | |   + chechsum 1 - 12 & 255
+                      |   | | | | | | | | + always 0000
+                      |   | | | | | | +-+ year, high-byte, lox-byte
+                      |   | | | | | + month
+                      |   | | | | + day of month
+                      |   | | | + hour
+                      |   | | + minute
+                      |   | + Seconds 
+                      +---+ Sync time command
+
+Notification handle = 0x002e value: 0f 04 01 00 00 02 ff ff
+
+
+# request configuration
+char-write-req 0x2b 0f051600000017ffff
+
+Notification handle = 0x002e value: 0f 0b 16 00 00 00 00 00 00 00 00 00 17 ff ff
+
+
+# request status
+char-write-req 0x2b 0f051000000011ffff
+
+Notification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60 ac ff ff
+                                    0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17
+                                                |  |  |  |  |  |  |  |     |  + Over power low-byte
+                                                |  |  |  |  |  |  |  |     + Over power high-byte
+                                                |  |  |  |  |  |  |  + LED 1=on / 0=off
+                                                |  |  |  |  |  |  + night mode end in min lox-byte
+                                                |  |  |  |  |  + night mode end in min high-byte
+                                                |  |  |  |  + night mode start in min low-byte
+                                                |  |  |  + night mode start in min high-byte
+                                                |  |  + night price
+                                                |  + normal Price / 100.0
+                                                + night mode active 1=yes, 0=no
+
+
+
+char-write-req 0x2b 0f050400000005ffff
+
+Notification handle = 0x002e value: 0f 11 04 00 01 00 00 41 ea 00 0c 32 00 00 00 00 00 00 6f
+
+# Set LED on / off
+## on
+char-write-req 0x2b 0f090f0005010000000016ffff
+
+Notification handle = 0x002e value: 0f 05 0f 00 05 00 15 ff ff
+
+
+## off
+char-write-req 0x2b 0f090f0005000000000015ffff
+
+Notification handle = 0x002e value: 0f 05 0f 00 05 00 15 ff ff
+
+# Get serial 
+char-write-req 0x2b 0f051100000012ffff
+
+Notification handle = 0x002e value: 0f 15 11 00 4d 4c 30 31 44 31 30 30 31 32 30 30 30 30 30 30
+Notification handle = 0x002e value: 00 00 64 ff ff
+
+# set name
+char-write-req 0x2b 0f170200000000000000000000000000000000000000000000ffff
+                      |   |                                       | + checksum
+                      |   +---------------------------------------+ Name in ASCII
+                      + set name command
+
+# reset data
+char-write-req 0x2b 
+
+# data ???
+15, 9, 15, 0, 5, (byte) var1, 0, 0, 0, 0, 0, -1, -
+
+
+
+# get random mode setting
+char-write-req 0x2b 0f051600000017ffff
+
+Notification handle = 0x002e value: 0f 0b 16 00 00 00 00 00 00 00 00 00 17 ff ff
+
 com.cei.meter.activity
 com.cei.meter.fragment
 com.cei.meter.thread.BleThread.class
 com.cei.meter.actions.Config
 
 
-GetStatus
 
-Handle: 1010 (WRITE_BLE_DATA)
-15, 5, 4, 0, 0, 0, 5, 255, 255
 
-    + cmd
+----
 
-Sync Config
-Handle: 1010 (WRITE_BLE_DATA)
-15, 5, 16, 0, 0, 0, 17, 255, 255
-    + cmd
 
-Sync Time
-15, 12, 1, 0, <seconds>, <minute>, <hour>, <day of month>, <month, 1=January>, <year, high-byte>, <year, low-byte>, 0, 0, <chechsum 1 - 12 & 255>, 255, 255
-    + cmd
+
+
  
-# Switch on / off
-        # 0f 06 03 00 01 00 00 05 ff ff  -> on
-        # 0f 06 03 00 00 00 00 04 ff ff  -> off
-
-# Login
-        print("Login")
-        self.password = password
-        cmd = bytearray([0x17])
-        payload = bytearray()
-        payload.append(0x00)
-        payload.append(0x00)
-        payload.append(int(self.password[0]))
-        payload.append(int(self.password[1]))
-        payload.append(int(self.password[2]))
-        payload.append(int(self.password[3]))
-        payload.append(0x00)
-        payload.append(0x00)
-        payload.append(0x00)
-        payload.append(0x00)
-        msg = self.BTLEMessage(self, cmd, payload)
-        msg.send()
-
-## change password
-
-15, 12, 23, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, -1, -1
 
 
+ 
 
-        payload.append(0x00)
-        payload.append(0x01)
-        payload.append(int(newPassword[0]))
-        payload.append(int(newPassword[1]))
-        payload.append(int(newPassword[2]))
-        payload.append(int(newPassword[3]))
-        payload.append(int(self.password[0]))
-        payload.append(int(self.password[1]))
-        payload.append(int(self.password[2]))
-        payload.append(int(self.password[3]))
 
 
 # Name
@@ -111,3 +196,7 @@ else it is a data notification
                 self.btle_device.power = (data[5] << 16 | data[6] << 8 | data[7]) / 1000
                 self.btle_device.frequency = data[11]
                 self.btle_device.powered = bool(data[4])
+
+
+
+
