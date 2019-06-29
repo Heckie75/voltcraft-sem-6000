@@ -1,0 +1,788 @@
+#!/usr/bin/expect
+#
+# Shell script in order to control Voltcraft SEM 6000
+#
+# Version: 2019-06-23
+#
+# MIT License
+#
+# Copyright (c) 2019 heckie75
+#
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files
+# (the "Software"), to deal in the Software without restriction,
+# including without limitation the rights to use, copy, modify, merge,
+# publish, distribute, sublicense, and/or sell copies of the Software,
+# and to permit persons to whom the Software is furnished to do so,
+# subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be
+# included in all copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+# CLAIM, DAMAGES OR OTHER LIABILITY, kWHETHER IN AN ACTION OF CONTRACT,
+# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH
+# THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+# sets output to stdout and debug
+log_user 0
+
+set verbose 0
+
+set DELAY 100
+
+set timeout 3
+
+set MAC_PATTERN                "\[0-9A-F]{2}:\[0-9A-F]{2}:\[0-9A-F]{2}:\[0-9A-F]{2}:\[0-9A-F]{2}:\[0-9A-F]{2}"
+set WEEKDAYS                   "SMTWTFS"
+set KNOWN_SEMS_FILE            "~/.known_sem6"
+
+set HELP(usage) "Usage: <mac/alias> <pin> --<command1> <parameters...> --<command2>\n\
+ \                                  <mac>: bluetooth mac address of smart energy meter\n\
+ \                                  <alias>: you can use alias instead of mac address, see ~/.known_sem6 \n\
+ \                                  <pin>: pin of smart energy meter if not stored in alias file\n\
+ \                                  <command>: For command and parameters"
+set HELP(sync) "\
+  --sync                             - synchronize time"
+
+set HELP(on) "\
+  --on                               - turn on smart energy meter"
+
+set HELP(off) "\
+  --off                              - turn off smart energy meter"
+
+set HELP(toggle) "\
+  --toggle                           - toggle smart energy meter"
+
+set HELP(pin) "\
+  --pin <1234|reset>                 - change PIN or reset to default PIN, i.e. 0000"
+
+set HELP(sleep) "\
+  --sleep <n>                        - pause processing for n seconds"
+
+set HELP(verbose) "\
+  --verbose                          - print information about processing"
+
+set HELP(debug) "\
+  --debug                            - print actions in gatttool"
+
+set HELP(help) "\
+  --help \[<command>\]                 - print general help or help for specific command"
+
+set INIT(connect)              1
+set INIT(auth)                 2
+
+set HANDLE(req)                43
+set HANDLE(notification)       46
+
+array set aliases              {}
+
+set sem(connected)             0
+set sem(authorized)            0
+set sem(mac)                   ""
+set sem(pin)                   ""
+set sem(alias)                 ""
+set sem(name)                  ""
+set sem(power)                 -1
+
+# prints help output
+proc help { argv } {
+
+  global HELP
+
+  # print help for given command
+  if { [llength $argv] == 2 && [lindex $argv 0] == "--help" } {
+    set command [lindex $argv 1]
+    puts stderr $HELP(usage)
+
+    if { [ info exists HELP($command) ] == 1 } {
+      puts stderr "\n$HELP($command)\n"
+    } else {
+      puts stderr "\nUnknown command <$command>.\n"
+    }
+    exit 1
+  } elseif { [llength $argv ] < 1 || [ lindex $argv 0 ] == "--help" } {
+    puts stderr "$HELP(usage)"
+    puts stderr "\nBasic commands:\n"
+    puts stderr "$HELP(on)"
+    puts stderr "$HELP(off)"
+    puts stderr "$HELP(toggle)"
+    puts stderr "\nScheduler commands:\n"
+    puts stderr "\nCountdown commands:\n"
+    puts stderr "\nPower commands:\n"
+    puts stderr "\nMeasurement commands:\n"
+    puts stderr "\nOther commands:\n"
+    puts stderr "$HELP(sync)"
+    puts stderr "$HELP(pin)"
+#    puts stderr "$HELP(print)"
+#    puts stderr "$HELP(dump)"
+    puts stderr "$HELP(sleep)"
+    puts stderr "$HELP(verbose)"
+    puts stderr "$HELP(debug)"
+    puts stderr "$HELP(help)"
+    puts stderr ""
+    exit 1
+  }
+
+}
+
+
+
+
+proc read_aliases {} {
+
+  global MAC_PATTERN
+  global KNOWN_SEMS_FILE
+  global aliases
+
+  if { [ file exists "$KNOWN_SEMS_FILE" ] == 0 } {
+    return
+  }
+
+  set fp [ open "$KNOWN_SEMS_FILE" r ]
+  fconfigure $fp -buffering line
+
+  gets $fp data
+  while { $data != "" } {
+    regexp "($MAC_PATTERN) (\[0-9]{4}) (\.+)" $data matched _mac _pin _alias
+
+    set aliases($_mac) "$_pin $_alias"
+    gets $fp data
+  }
+
+  close $fp
+
+}
+
+
+
+
+proc lookup_alias { pattern } {
+
+  global aliases
+  global sem
+
+  set mac ""
+
+  foreach _mac [ lsort [ array names aliases ] ] {
+    if { [ string first "$pattern" $aliases($_mac) ] != -1 } {
+      regexp "(\[0-9]{4}) (\.+)" $aliases($_mac) matched _pin _alias
+
+      set mac $_mac
+      set sem(pin) $_pin
+      set sem(alias) $_alias
+    }
+  }
+
+  return $mac
+
+}
+
+
+
+
+proc get_mac { id } {
+
+  global MAC_PATTERN
+
+  set mac ""
+
+  set is_mac [ regexp "$MAC_PATTERN" $id ]
+  if { $is_mac == 1 } {
+    set mac $id
+  } else {
+    read_aliases
+    set mac [ lookup_alias $id ]
+  }
+
+  return $mac
+
+}
+
+
+
+
+proc hex_to_decimal { s } {
+
+  scan $s %x d
+  return $d
+
+}
+
+
+
+
+proc decimal_to_hex { d } {
+
+  scan $d %d d
+  set h [ format %4.2x $d ]
+  set h [ string trim $h ]
+
+  if { [ expr [ string length $h ] % 2 ] == 1 } {
+    set h "0$h"
+  }
+
+  return $h
+
+}
+
+
+
+
+proc init { level } {
+
+  global INIT
+  global sem
+
+  if { ( $sem(connected) & $INIT(connect) ) != $INIT(connect) } {
+
+    set sem(connected) [ gatt_connect $sem(mac) ]
+
+    if { $sem(connected) != $INIT(connect) } {
+
+      puts stderr "ERROR:\tConnection failed"
+      exit -1
+
+    }
+
+  }
+
+  if { ( $level & $INIT(auth) ) == $INIT(auth) && ( $sem(authorized) & $INIT(auth) ) != $INIT(auth) } {
+
+    # authorize
+    set authorized [ req_auth ]
+
+    if { ( $authorized & $INIT(auth) ) != $INIT(auth) } {
+
+      puts stderr "ERROR:\tAuthorization failed. Check PIN!"
+      exit -1
+
+    } 
+
+  }
+
+  return $sem(connected)
+
+}
+
+
+
+
+proc gatt_connect { mac } {
+
+  global INIT
+  global DELAY
+
+  log "INFO:\tTry to connect to $mac"
+
+  expect "\[LE\]"
+  send "connect $mac\r"
+  expect "Connection successful" {
+    after $DELAY
+    log "INFO:\tConnected to $mac"
+    return $INIT(connect)
+  }
+  log "ERROR:\tConnection failed"
+  return 0
+
+}
+
+
+
+
+proc gatt_disconnect {} {
+
+  global sem
+
+  log "INFO:\tDisconnect from $sem(mac)"
+
+  send "disconnect\r"
+
+}
+
+
+
+
+proc gatt_char_write_req { handle bytes } {
+
+  global DELAY
+  set notification {}
+
+  set hnd_hex [ decimal_to_hex $handle ]
+  set value ""
+  foreach b $bytes {
+    append value [ decimal_to_hex $b ]
+  }
+
+  log "INFO:\t>>>\tchar-write-req $hnd_hex $value"
+
+  send "char-write-req $hnd_hex $value\r"
+
+  expect {
+    "Characteristic value was written successfully" {
+      log "INFO:\tOK"
+    }
+  }
+
+  expect {
+    -indices -re "Notification handle = 0x(.*)\r" {
+      after $DELAY
+      set buffer $expect_out(1,string)
+      log "INFO:\t<<<\tNotification handle = 0x$buffer"
+    }
+    timeout {
+      log "WARN:\tTimeout. Notification not received"
+      return $notification
+    }
+  }
+
+  # convert notification to byte list
+  foreach s $buffer {
+    set check [ regexp {^[0-9A-Fa-f]+} $s ]
+    if { $check == 0 } {
+      continue
+    }
+    lappend notification [ hex_to_decimal $s ]
+  }
+
+  return $notification
+
+}
+
+
+
+
+proc command_req { bytes } {
+
+  global HANDLE
+
+  set full_req {}
+
+  # static prefix 0x0f 
+  lappend full_req 15
+
+  # length of request 
+  set size [ expr [ llength $bytes ] + 1 ]
+  lappend full_req $size
+
+  # add payload and calculate checksum
+  set sum 1
+  foreach b $bytes {
+    lappend full_req $b
+    set sum [ expr $sum + $b ]
+  }
+  set sum [ expr $sum & 255 ]
+  lappend full_req $sum
+
+  # static suffix 0xffff 
+  lappend full_req 255
+  lappend full_req 255
+
+  set notification [ gatt_char_write_req $HANDLE(req) $full_req ]
+
+  # check response on meta level
+  set length [ llength $notification ]
+  if { $length < 7 \
+        || [ lindex $notification 0 ] != $HANDLE(notification) \
+        || [ lindex $notification 1 ] != 15 \
+        || $length != [ expr [ lindex $notification 2 ] + 5 ] \
+        || [ lindex $notification [ expr [ lindex $notification 2 ] + 3 ] ] != 255 \
+        || [ lindex $notification [ expr [ lindex $notification 2 ] + 4 ] ] != 255 } {
+    log "ERROR:\tNotification unexpected, invalid or incomplete!"
+    return {}
+  }
+
+  # collect and check response payload
+  set response {}
+  set sum 1
+  for { set i 3 } { $i < [ expr $length - 3 ] } { incr i } {
+    set b [ lindex $notification $i ]
+    set sum [ expr $sum + $b ]
+    lappend response $b
+  }
+  set sum [ expr $sum & 255 ]
+
+  if { $sum != [ lindex $notification [ expr $length - 3 ] ] } {
+    log "ERROR:\tChecksum of notification invalid!"
+    return {}
+  }
+
+  return $response
+
+}
+
+
+
+
+proc req_auth {} {
+
+  global INIT
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tAuth SEM"
+
+  # Byte 1 - 3: Auth command, 0x170000
+  lappend bytes 23
+  lappend bytes 0
+  lappend bytes 0
+
+  # Byte 4 - 6: pin
+  for { set i 0 } { $i < 4 } { incr i } {
+
+    lappend bytes [ expr 1 * [ string range $sem(pin) $i $i ] ]
+
+  }
+
+  # Byte 7 - 10: static 0
+  for { set i 0 } { $i < 4 } { incr i } {
+
+    lappend bytes 0
+
+  }
+  
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 5 \
+      && [ lindex $response 0 ] == 23 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 0 } {
+
+    log "INFO:\tSEM authorized successfully with PIN"
+    return $INIT(auth)
+
+  } else {
+
+    log "ERROR:\tAuthorization failed. Check PIN!"
+    return 0
+
+  }
+
+}
+
+
+
+
+proc req_change_pin { new_pin } {
+
+  global INIT
+  global sem
+
+  set bytes {}
+
+  log "INFO:\Change PIN"
+
+  # Byte 1 - 3: Change PIN command, 0x170001
+  lappend bytes 23
+  lappend bytes 0
+  lappend bytes 1
+
+  # Byte 4 - 6: new pin
+  for { set i 0 } { $i < 4 } { incr i } {
+
+    lappend bytes [ expr 1 * [ string range $new_pin $i $i ] ]
+
+  }
+
+  # Byte 7 - 10: current pin
+  for { set i 0 } { $i < 4 } { incr i } {
+
+    lappend bytes [ expr 1 * [ string range $sem(pin) $i $i ] ]
+
+  }
+  
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 5 \
+      && [ lindex $response 0 ] == 23 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 0 \
+      && [ lindex $response 3 ] == 1 } {
+
+    log "INFO:\tPIN changed successfully"
+    set sem(authorized) $INIT(auth)
+    set sem(pin) $new_pin
+    return 0
+
+  } else {
+
+    log "ERROR:\tChanging PIN failed. Check old PIN!"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc req_reset_pin {} {
+
+  global INIT
+  global sem
+
+  set bytes {}
+
+  log "INFO:\Reset PIN"
+
+  # Byte 1 - 3: Change PIN command, 0x170001
+  lappend bytes 23
+  lappend bytes 0
+  lappend bytes 2
+
+  # Byte 4 - 10: 0x0000000000000000
+  for { set i 0 } { $i < 8 } { incr i } {
+
+    lappend bytes 0
+
+  }
+  
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 5 \
+      && [ lindex $response 0 ] == 23 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 0 \
+      && [ lindex $response 3 ] == 2 } {
+
+    log "INFO:\tPIN reset successfully"
+    set sem(authorized) $INIT(auth)
+    set sem(pin) "0000"
+    return 0
+
+  } else {
+
+    log "ERROR:\tResetting PIN failed!"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc req_switch { s } {
+
+  global REQ_COMMAND
+  global INIT
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tSwitch SEM"
+
+  # Byte 1 - 2: Switch command, 0x0300
+  lappend bytes 3
+  lappend bytes 0
+
+  # Byte 3: Turn on (1) / turn off (0)
+  set s [ expr $s == 1 ? 1 : 0 ]
+  lappend bytes $s
+
+  # Byte 4 - 5: static 0x0000
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 3 \
+      && [ lindex $response 0 ] == 3 \
+      && [ lindex $response 2 ] == 0 } {
+
+    log "INFO:\tSEM successfully switched"
+    set sem(power) $s
+    return 0
+
+  } else {
+
+    log "ERROR:\tSwitching SEM failed"
+    return -1
+
+  }
+
+}
+
+
+
+proc do_command { command } {
+
+  global INIT
+  global sem
+  global verbose
+  global data_per_hour
+  global data_per_minute
+
+  switch -regexp $command {
+    ^sync$ {
+
+      init 0
+
+    }
+    ^on$ {
+
+      init $INIT(auth)
+      req_switch 1
+
+    }
+    ^off$ {
+
+      init $INIT(auth)
+      req_switch 0
+
+    }
+    ^toggle$ {
+
+
+    }
+    ^pin.*$ {
+
+      if { [ llength $command ] == 2 && [ lindex $command 1 ] == "reset" } {
+
+        init 0
+        req_reset_pin
+
+      } else {
+
+        check_command $command 1 "pin" {^pin [0-9]{4}$}
+        
+        init 0
+        req_change_pin [ lindex $command 1 ]
+
+      }
+
+    }    
+    ^print$ {
+
+      print_sem
+
+    }
+    ^sleep.*$ {
+
+      check_command $command 1 "sleep" {^sleep [0-9]+$}
+      after [ expr [ lindex $command 1 ] * 1000 ]
+
+    }
+    ^verbose$ {
+
+      set verbose 1
+
+    }
+    ^debug$ {
+
+      log_user 1
+
+    }
+    ^help\ .+$ {
+
+      set h { "--help" }
+      lappend h [ lindex $command 1 ]
+      help $h
+
+    }
+    ^.*$ {
+
+      help ""
+
+    }
+  }
+}
+
+
+
+
+# logs output to stdout
+proc log { l } {
+
+  global verbose
+
+  if { $verbose != 0 } {
+
+    puts stderr $l
+
+  }
+
+}
+
+
+
+
+proc check_command {argv req command reg} {
+
+  global HELP
+
+  set check [ regexp $reg [ concat $argv ] ]
+
+  if { [ llength $argv ] <= $req || $check == 0 } {
+    puts stderr $HELP(usage)
+    puts stderr $HELP($command)
+    puts stderr ""
+    exit 1
+  }
+
+}
+
+
+
+
+######################### main #########################
+help $argv
+
+# 1. get mac
+set sem(mac) [ get_mac [ lindex $argv 0 ] ]
+if { $sem(mac) == "" } {
+  puts stderr "Smart-energy-meter \"[ lindex $argv 0 ]\" currently not known. Edit ~/.known_sem6 file before using aliases."
+  exit 1
+}
+set argv [ lrange $argv 1 end ]
+
+# 2. get pin
+set is_pin [ regexp "\[0-9]{4}" [ lindex $argv 0 ] ]
+if { $is_pin == 1 } {
+  set sem(pin) [ lindex $argv 0 ]
+  set argv [ lrange $argv 1 end ]
+}
+if { $sem(pin) == "" } {
+  puts stderr "No PIN given explicitly or determined in ~/.known_sem6."
+  exit 1
+}
+
+# 3. Open interactive gatttool session
+spawn -noecho /usr/bin/gatttool -I
+
+## 4. collect commands
+set command {}
+while { 1 } {
+
+  set param [ lindex $argv 0 ]
+  set argv [ lrange $argv 1 end ]
+
+  if { [string range $param 0 1 ] == "--" } {
+    set param [string range $param 2 end ]
+    if { [ llength $command ] > 0 } {
+      do_command $command
+      set command {}
+    }
+    if { [ llength $argv ] == 0 } {
+      do_command $param
+      break
+    }
+  }
+
+  lappend command $param
+
+  if { [ llength $argv ] == 0 } {
+    if { [ llength $command ] > 0 } {
+      do_command $command
+    }
+    break
+  }
+}
+
+# 5. close gatttool session
+gatt_disconnect
+close -i $spawn_id
