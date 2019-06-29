@@ -6,58 +6,100 @@ https://www.revogi.com/smart-power/power-plug-eu/#section0
 https://git.geekify.de/sqozz/sem6000/src/commit/3673e31ffcd1ceaed6969dafb0f6dd967c253d11/sem6000.py
 
 
-# Login
+# Authorization with PIN
+```
 char-write-req 0x2b 0f0c170000000000000000000018ffff
-                        | |   |     | |     | | +--+ always ffff
-                        | |   |     | |     | + checksum
-                        | |   |     | +-----+ always 00000000
-                        | |   +-----+ Pin
-                        | |        
-                        | + 0000
-                        + Login command
-                                    0  1  2  3  4  5  6  7
+                    | | |   | |     | |       | +  static end sequence of message, 0xffff
+                    | | |   | |     | |       + checksum byte starting with length-byte, ending w/ byte before
+                    | | |   | |     | + always 0x00000000
+                    | | |   | + PIN, 4 bytes e.g. 01020304
+                    | | |   + 0x00 for authorization request
+                    | | + Authorization command 0x1700
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
+
+
 Notification handle = 0x002e value: 0f 06 17 00 00 00 00 18 ff ff
-                                                + 0 = success, 1 = success, 2 = ???
+                                    |  |  |     |  |     |  + static end sequence of message, 0xffff
+                                    |  |  |     |  |     + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     |  + always 0x0000  
+                                    |  |  |     + 0 = success, 1 = unsuccess
+                                    |  |  + Login command 0x1700
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
 
-# Change password 
-char-write-req 0x2b 0f0c170000010203040000000022ffff
-                      | | | | |     | |     | | + always ffff
-                      | | | | |     | |     | + checksum
-                      | | | | |     | +-----+ old PIN
-                      | | | | +-----+ new PIN
-                      | | +-+ always 0001
-                      +-+ Change password command
 
-# Force password to "0000"
-char-write-req 0x2b 0f0c17000200000000000000001affff
-                      | | | | |     | |     | | + always ffff
-                      | | | | |     | |     | + checksum
-                      | | | | |     | +-----+ old PIN
-                      | | | | +-----+ new PIN
-                      | | +-+ always 0002 (!)
-                      +-+ Change password command
+# Change PIN 
+```
+char-write-req 0x2b 0f0c170001010203040000000018ffff
+                    | | |     |       |       | +  static end sequence of message, 0xffff
+                    | | |     |       |       + checksum byte starting with length-byte, ending w/ byte before
+                    | | |     |       + old PIN, 4 bytes e.g. 01020304
+                    | | |     + new PIN, 4 bytes e.g. 01020304
+                    | | + Change pin command 0x170001
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
 
-Notification handle = 0x002e value: 0f 06 17 00 00 02 00 1a ff ff
-                                                   + 0 = success, 1 = success, 2 = ???
 
+Notification handle = 0x002e value: 0f 06 17 00 00 01 00 18 ff ff
+                                    |  |  |     |        |  + static end sequence of message, 0xffff
+                                    |  |  |     |        + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     + 0 = success  
+                                    |  |  + Login command 0x170000
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
+
+# Reset PIN to "0000"
+```
+char-write-req 0x2b 0f0c170002000000000000000018ffff
+                    | | |   | |               | +  static end sequence of message, 0xffff
+                    | | |   | |               + checksum byte starting with length-byte, ending w/ byte before
+                    | | |   | + static 0x0000000000000000
+                    | | |   + 0x02 for reset PIN
+                    | | + Authorization command 0x1700
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
+
+
+Notification handle = 0x002e value: 0f 06 17 00 00 02 00 18 ff ff
+                                    |  |  |     |        |  + static end sequence of message, 0xffff
+                                    |  |  |     |        + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     + 0 = success
+                                    |  |  + Login command 0x170000
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
 
 # Switch on / off
-char-write-req 0x2b 0f06030001000005ffff -> turn on 
-char-write-req 0x2b 0f06030000000004ffff -> turn off
-                      |  |  |     |  
-                      |  |  |     + Checksum
-                      |  |  + Power: 1 = on, 0 = off 
-                      |  |
-                      +--+ Switch command
+```
+char-write-req 0x2b 0f06030000000004ffff
+                    | | |   | |   | + static end sequence of message, 0xffff
+                    | | |   | |   + checksum byte starting with length-byte, ending w/ byte before
+                    | | |   | + Static 0x0000
+                    | | |   + 0x01 = turn on, 0x00 = turn off
+                    | | + Switch command 0x0300
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
+
 
 Notification handle = 0x002e value: 0f 04 03 00 00 04 ff ff
+                                    |  |  |     |  |  + static end sequence of message, 0xffff
+                                    |  |  |     |  + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     + 0 = success
+                                    |  |  + Switch command 0x0300
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
+
 
 # sync time
 char-write-req 0x2b 0f0c010029180a160607e3000053ffff
                       |   | | | | | | | | |   | + always ffff
                       |   | | | | | | | | |   + chechsum 1 - 12 & 255
                       |   | | | | | | | | + always 0000
-                      |   | | | | | | +-+ year, high-byte, lox-byte
+                      |   | | | | | | +-+ year, high-byte, low-byte
                       |   | | | | | + month
                       |   | | | | + day of month
                       |   | | | + hour
