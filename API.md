@@ -93,8 +93,37 @@ Notification handle = 0x002e value: 0f 04 03 00 00 04 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
+# Capture measurement
+```
+char-write-req 0x2b 0f050400000005ffff
+                    | | |       | + static end sequence of message, 0xffff
+                    | | |       + checksum byte starting with length-byte, ending w/ byte before
+                    | | + Capture measurement command 0x040000
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
 
-# sync time
+
+Notification handle = 0x002e value: 0f 11 04 00 01 00 00 00 eb 00 0c 32 00 00 00 00 00 00 2f 
+                                    |  |  |     |  |        |  |     |                    |  + Static end sequence (0xffff) is missing in this notification!
+                                    |  |  |     |  |        |  |     |                    + checksum byte starting with length-byte
+                                    |  |  |     |  |        |  |     |
+                                    |  |  |     |  |        |  |     + frequency (Hz)
+                                    |  |  |     |  |        |  + Ampere/1000 (A), 2 bytes
+                                    |  |  |     |  |        + Voltage (V)
+                                    |  |  |     |  |
+                                    |  |  |     |  + Watt/1000, 3 bytes
+                                    |  |  |     + Power, 0 = off, 1 = on
+                                    |  |  + Capture measurement response 0x0400
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+
+
+```
+
+Note: Typical 0xffff end sequence is missing in this response. This is probably since there is no room for it. 
+
+
+# Synchronize datetime
 ```
 char-write-req 0x2b 0f0c010029180a160607e3000053ffff
                     | | |   | | | | | | | |   | + always ffff
@@ -119,30 +148,29 @@ Notification handle = 0x002e value: 0f 04 01 00 00 02 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
-# request configuration
-char-write-req 0x2b 0f051600000017ffff
-
-Notification handle = 0x002e value: 0f 0b 16 00 00 00 00 00 00 00 00 00 17 ff ff
-
-
-# request status
+# request settings
+```
 char-write-req 0x2b 0f051000000011ffff
 
-Notification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60 ac ff ff
-                                    0  1  2  3  4  5  6  7  8  9  10 11 12 13 14 15 16 17
-                                                |  |  |  |  |  |  |  |     |  + Over power low-byte
-                                                |  |  |  |  |  |  |  |     + Over power high-byte
-                                                |  |  |  |  |  |  |  + LED 1=on / 0=off
-                                                |  |  |  |  |  |  + night mode end in min lox-byte
-                                                |  |  |  |  |  + night mode end in min high-byte
-                                                |  |  |  |  + night mode start in min low-byte
-                                                |  |  |  + night mode start in min high-byte
-                                                |  |  + night price
-                                                |  + normal Price / 100.0
-                                                + night mode active 1=yes, 0=no
+NNotification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60 ac ff ff
+                                    |  |  |     |  |  |  |  |  |  |  |     |  |  |  + static end sequence of message, 0xffff
+                                    |  |  |     |  |  |  |  |  |  |  |     |  |  + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     |  |  |  |  |  |  |  |     |  + Over power low-byte
+                                    |  |  |     |  |  |  |  |  |  |  |     + Over power high-byte
+                                    |  |  |     |  |  |  |  |  |  |  + LED 1=on / 0=off
+                                    |  |  |     |  |  |  |  |  |  + night mode end in min lox-byte
+                                    |  |  |     |  |  |  |  |  + night mode end in min high-byte
+                                    |  |  |     |  |  |  |  + night mode start in min low-byte
+                                    |  |  |     |  |  |  + night mode start in min high-byte
+                                    |  |  |     |  |  + night price / 100.0
+                                    |  |  |     |  + normal Price / 100.0
+                                    |  |  |     + night mode active 1=yes, 0=no
+                                    |  |  + Request settings command, 0x1000
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
 
-
-
+# request ???
 char-write-req 0x2b 0f050400000005ffff
 
 Notification handle = 0x002e value: 0f 11 04 00 01 00 00 41 ea 00 0c 32 00 00 00 00 00 00 6f
@@ -175,14 +203,16 @@ char-write-req 0x2b 0f170200000000000000000000000000000000000000000000ffff
 char-write-req 0x2b 
 
 # data ???
-15, 9, 15, 0, 5, (byte) var1, 0, 0, 0, 0, 0, -1, -
+15, 9, 15, 0, 5, (byte) var1, 0, 0, 0, 0, 0, -1, -1
 
 
-
-# get random mode setting
+# request randommode
+```
 char-write-req 0x2b 0f051600000017ffff
 
 Notification handle = 0x002e value: 0f 0b 16 00 00 00 00 00 00 00 00 00 17 ff ff
+```
+
 
 com.cei.meter.activity
 com.cei.meter.fragment

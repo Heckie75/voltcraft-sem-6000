@@ -74,6 +74,9 @@ set HELP(help) "\
 
 set INIT(connect)              1
 set INIT(auth)                 2
+set INIT(sync)                 4
+set INIT(settings)             8
+set INIT(measurement)          16
 
 set HANDLE(req)                43
 set HANDLE(notification)       46
@@ -83,12 +86,25 @@ array set aliases              {}
 set sem(mac)                   ""
 set sem(pin)                   ""
 set sem(alias)                 ""
-set sem(name)                  ""
 
-set sem(connected)             0
-set sem(authorized)            0
+set sem(init)                  0
+
+set sem(night_mode)            -1
+set sem(night_start)           ""
+set sem(night_end)             ""
+set sem(night_price)           -1
+set sem(normal_price)          -1
+set sem(over_power)            -1
+set sem(led)                   -1
+
 set sem(power)                 -1
-set sem(sync)                  -1
+set sem(watt)                  -1
+set sem(voltage)               -1
+set sem(ampere)                -1
+set sem(frequency)             -1
+set sem(power_factor)          -1
+
+set sem(name)                  ""
 
 
 # prints help output
@@ -120,8 +136,8 @@ proc help { argv } {
     puts stderr "\nOther commands:\n"
     puts stderr "$HELP(sync)"
     puts stderr "$HELP(pin)"
-#    puts stderr "$HELP(print)"
-#    puts stderr "$HELP(dump)"
+    puts stderr "$HELP(print)"
+    puts stderr "$HELP(dump)"
     puts stderr "$HELP(sleep)"
     puts stderr "$HELP(verbose)"
     puts stderr "$HELP(debug)"
@@ -129,6 +145,113 @@ proc help { argv } {
     puts stderr ""
     exit 1
   }
+
+}
+
+
+
+
+proc print_sem {} {
+
+  global sem
+
+  set out ""
+  append out [ print_device ]
+  append out [ print_measurement ]
+  append out [ print_settings ]
+
+#  append out [ print_uptime ]
+#  append out [ print_consumption ]
+#  append out [ print_avg_consumption ]
+#  for { set i 0 } { $i < 6 } { incr i } {
+#    append out [ print_scheduler $i ]
+#  }
+#  append out [ print_countdown ]
+#  append out [ print_overload ]
+#  append out [ print_standby ]
+#  append out $sem(header_data)
+#  append out [ print_data_hours ]
+#  append out [ print_data_minutes ]
+  puts -nonewline $out
+
+}
+
+
+
+
+proc print_device {} {
+
+  global INIT
+  global sem
+
+  set out ""
+  append out "\tMac:              $sem(mac)\n"
+  append out "\tDevice PIN:       $sem(pin)\n"
+  append out "\tAlias:            $sem(alias)\n"
+  append out "\n"
+
+  return $out
+
+}
+
+
+
+
+proc print_measurement {} {
+
+  global INIT
+  global sem
+
+  if { ( $sem(init) & $INIT(measurement) ) != $INIT(measurement) } {
+    return ""
+  }
+
+  append out "\tStatus:\n"
+  append out "\t  Power:          [ expr $sem(power) == 1 ? "on" : "off" ]\n"
+  append out "\t  Voltage:        $sem(voltage) VAC\n"
+  append out "\t  Ampere:         $sem(ampere) A\n"
+  append out "\t  Watts:          $sem(watt) W\n"
+  append out "\t  Frequency:      $sem(frequency) Hz\n"
+  if { $sem(power) == 1 } {
+    append out "\t  Power factor:   [ format_decimal [ expr $sem(watt) / $sem(voltage) / $sem(ampere) ] ]\n"
+  }
+  append out "\n"
+
+  return $out
+
+}
+
+
+
+
+proc print_settings {} {
+
+  global INIT
+  global sem
+
+  set out ""
+
+  if { ( $sem(init) & $INIT(settings) ) == $INIT(settings) } {
+
+    append out "\tLED ring:         [ expr $sem(led) == 1 ? "on" : "off" ]\n"
+    append out "\tOverload limit:   $sem(over_power) W\n"
+    append out "\n"
+    append out "\tPrice:            [ format_decimal [ expr $sem(normal_price) / 100.0 ] ]\n"
+    append out "\n"
+    append out "\tNight mode:       [ expr $sem(night_mode) == 1 ? "on" : "off" ]\n"
+ 
+    if { $sem(night_mode) == 1 } {
+ 
+      append out "\tNight start:      [ minutes_to_time $sem(night_start) ]\n"
+      append out "\tNight end:        [ minutes_to_time $sem(night_end) ]\n"
+      append out "\tNight price:      [ format_decimal [ expr $sem(night_price) / 100.0 ] ]\n"
+      append out "\n"
+ 
+    }
+ 
+  }
+
+  return $out
 
 }
 
@@ -244,44 +367,24 @@ proc current_datetime {} {
 
 
 
-proc init { level } {
+proc minutes_to_time { m } {
 
-  global INIT
-  global sem
-
-  if { ( $sem(connected) & $INIT(connect) ) != $INIT(connect) } {
-
-    set sem(connected) [ gatt_connect $sem(mac) ]
-
-    if { $sem(connected) != $INIT(connect) } {
-
-      puts stderr "ERROR:\tConnection failed"
-      exit -1
-
-    }
-
-  }
-
-  if { ( $level & $INIT(auth) ) == $INIT(auth) && ( $sem(authorized) & $INIT(auth) ) != $INIT(auth) } {
-
-    # authorize
-    set authorized [ req_auth ]
-
-    if { ( $authorized & $INIT(auth) ) != $INIT(auth) } {
-
-      puts stderr "ERROR:\tAuthorization failed. Check PIN!"
-      exit -1
-
-    } 
-
-  }
-
-  return $sem(connected)
+  set time [clock format [expr 60 * $m] -format %H:%M -gmt true]
+  return $time
 
 }
 
 
 
+
+proc format_decimal { d } {
+
+  return [ format %.2f $d ]
+
+}
+
+
+  
 
 proc gatt_connect { mac } {
 
@@ -395,6 +498,15 @@ proc command_req { bytes } {
 
   set notification [ gatt_char_write_req $HANDLE(req) $full_req ]
 
+  # Ff length is 20 bytes then there is no room for 0xffff end sequence
+  if { [ llength $notification ] == 20 } {
+
+    # add missing end sequence for further processing w/o extra logics
+    lappend notification 255
+    lappend notification 255
+
+  }
+
   # check response on meta level
   set length [ llength $notification ]
   if { $length < 7 \
@@ -423,6 +535,67 @@ proc command_req { bytes } {
   }
 
   return $response
+
+}
+
+
+
+
+proc init { level } {
+
+  global INIT
+  global sem
+
+  if { ( $sem(init) & $INIT(connect) ) != $INIT(connect) } {
+
+    set connected [ gatt_connect $sem(mac) ]
+
+    if { $connected != $INIT(connect) } {
+
+      puts stderr "ERROR:\tConnection failed"
+      exit -1
+
+    } else {
+
+      set sem(init) [ expr $sem(init) | $INIT(connect) ]
+
+    }
+
+  }
+
+  if { ( $level & $INIT(auth) ) == $INIT(auth) && ( $sem(init) & $INIT(auth) ) != $INIT(auth) } {
+
+    # authorize
+    set authorized [ req_auth ]
+
+    if { ( $authorized & $INIT(auth) ) != $INIT(auth) } {
+
+      puts stderr "ERROR:\tAuthorization failed. Check PIN!"
+      exit -1
+
+    } else {
+
+      set sem(init) [ expr $sem(init) | $INIT(auth) ]
+
+    }
+
+  }
+
+  if { ( $level & $INIT(sync) ) == $INIT(sync) && ( $sem(init) & $INIT(sync) ) != $INIT(sync) } {
+
+    # synchronize datetime
+    req_sync
+
+  }
+
+  if { ( $level & $INIT(settings) ) == $INIT(settings) && ( $sem(init) & $INIT(settings) ) != $INIT(settings) } {
+
+    # get current configuration
+    req_settings
+
+  }
+
+  return $sem(init)
 
 }
 
@@ -516,7 +689,7 @@ proc req_change_pin { new_pin } {
       && [ lindex $response 3 ] == 1 } {
 
     log "INFO:\tPIN changed successfully"
-    set sem(authorized) $INIT(auth)
+    set sem(init) [ expr $sem(init) | $INIT(auth) ]
     set sem(pin) $new_pin
     return 0
 
@@ -562,7 +735,7 @@ proc req_reset_pin {} {
       && [ lindex $response 3 ] == 2 } {
 
     log "INFO:\tPIN reset successfully"
-    set sem(authorized) $INIT(auth)
+    set sem(init) [ expr $sem(init) | $INIT(auth) ]
     set sem(pin) "0000"
     return 0
 
@@ -580,7 +753,6 @@ proc req_reset_pin {} {
 
 proc req_sync {} {
 
-  global REQ_COMMAND
   global INIT
   global sem
 
@@ -620,11 +792,12 @@ proc req_sync {} {
   set response [ command_req $bytes ]
 
   if { [ llength $response ] == 3 \
+      && [ lindex $response 0 ] == 1 \
       && [ lindex $response 1 ] == 0 \
       && [ lindex $response 2 ] == 0 } {
 
     log "INFO:\tSEM successfully synchronized"
-    set sem(sync) 1
+    set sem(init) [ expr $sem(init) | $INIT(sync) ]
     return 0
 
   } else {
@@ -639,10 +812,118 @@ proc req_sync {} {
 
 
 
+proc req_settings {} {
+
+  global INIT
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tRequest settings"
+
+  # Byte 1 - 4: Configuration command, 0x16000000
+  lappend bytes 16
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 13 \
+      && [ lindex $response 0 ] == 16 \
+      && [ lindex $response 1 ] == 0 } {
+
+    parse_settings $response
+
+    log "INFO:\tSettings successfully requested"
+    set sem(init) [ expr $sem(init) | $INIT(settings) ]
+    return 0
+
+  } else {
+
+    log "ERROR:\tRequesting settings of SEM failed"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc parse_settings { b } {
+
+  global sem
+
+  set sem(night_mode)     [ expr [ lindex $b 2 ] == 1 ? 1 : 0 ]
+  set sem(night_start)    [ expr [ lindex $b 5 ] << 8 | [ lindex $b 6 ] ]
+  set sem(night_end)      [ expr [ lindex $b 7 ] << 8 | [ lindex $b 8 ] ]
+  set sem(night_price)    [ expr [ lindex $b 4 ] ]
+  set sem(normal_price)   [ expr [ lindex $b 3 ] ]
+  set sem(over_power)     [ expr [ lindex $b 11 ] << 8 | [ lindex $b 12 ] ]
+  set sem(led)            [ expr [ lindex $b 9 ] == 1 ? 1 : 0 ]
+
+}
+
+
+
+
+proc capture_measurement {} {
+
+  global INIT
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tRequest measurement"
+
+  # Byte 1 - 4: Measurement command, 0x16000000
+  lappend bytes 4
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 16 \
+      && [ lindex $response 0 ] == 4 \
+      && [ lindex $response 1 ] == 0 } {
+
+    parse_measurement $response
+
+    log "INFO:\tMeasurement successfully requested"
+    set sem(init) [ expr $sem(init) | $INIT(measurement) ]
+    return 0
+
+  } else {
+
+    log "ERROR:\tRequesting measurement failed"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc parse_measurement { b } {
+
+  global sem
+
+  set sem(power)        [ expr [ lindex $b 2 ] == 1 ? 1 : 0 ]
+  set sem(watt)         [ expr ( [ lindex $b 3 ] << 16 | [ lindex $b 4 ] << 8  | [ lindex $b 5 ] ) / 1000.0 ]
+  set sem(voltage)      [ expr [ lindex $b 6 ] ]
+  set sem(ampere)       [ expr ( [ lindex $b 7 ] << 8  | [ lindex $b 8 ] ) / 1000.0 ]
+  set sem(frequency)    [ expr [ lindex $b 9 ] ]
+
+}
+
+
+
+
 proc req_switch { s } {
 
-  global REQ_COMMAND
-  global INIT
   global sem
 
   set bytes {}
@@ -697,6 +978,34 @@ proc do_command { command } {
       req_sync
 
     }
+    ^status$ {
+
+      init $INIT(auth)
+      capture_measurement
+
+    }
+    ^measure.*$ {
+
+      set until 0
+      if { [ llength $command ] > 1 } {
+        check_command $command 1 "measure" {^measure [0-9]+$}
+        set until [ expr [ clock seconds ] + [ lindex $command 1 ] ]
+      } else {
+        set until -1
+      }
+
+      init $INIT(subscribe_measures)
+
+      puts $sem(header_measure)
+
+      set current_seconds -1
+      while { $current_seconds < $until || $until == -1 } {
+        capture_measurement
+        puts [ print_measurement_as_csv ]
+        set current_seconds [ clock seconds ]
+      }
+
+    }    
     ^on$ {
 
       init $INIT(auth)
@@ -711,6 +1020,9 @@ proc do_command { command } {
     }
     ^toggle$ {
 
+      init $INIT(auth)
+      capture_measurement
+      req_switch [ expr $sem(power) == 0 ? 1 : 0 ]
 
     }
     ^pin.*$ {
@@ -729,7 +1041,13 @@ proc do_command { command } {
 
       }
 
-    }    
+    }
+    ^dump$ {
+
+      init 255
+      capture_measurement
+
+    }        
     ^print$ {
 
       print_sem
