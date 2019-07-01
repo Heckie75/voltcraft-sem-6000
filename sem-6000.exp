@@ -57,8 +57,23 @@ set HELP(off) "\
 set HELP(toggle) "\
   --toggle                           - toggle smart energy meter"
 
+set HELP(status) "\
+  --status                           - get status incl. voltage, ampere, watts, power factor and frequency"
+
+set HELP(measure) "\
+  --measure \[<s>\]                    - take measurements, optional duration in seconds (use 0 for single), otherwise forever"
+
+set HELP(header) "\
+  --header <measure|data>            - print header line for measurements or data"
+
 set HELP(pin) "\
   --pin <1234|reset>                 - change PIN or reset to default PIN, i.e. 0000"
+
+set HELP(print) "\
+  --print                            - print gathered information"
+
+set HELP(dump) "\
+  --dump                             - request all information from device"
 
 set HELP(sleep) "\
   --sleep <n>                        - pause processing for n seconds"
@@ -82,6 +97,9 @@ set HANDLE(req)                43
 set HANDLE(notification)       46
 
 array set aliases              {}
+
+set sem(header_measure)        ""
+set sem(header_data)           ""
 
 set sem(mac)                   ""
 set sem(pin)                   ""
@@ -133,6 +151,9 @@ proc help { argv } {
     puts stderr "\nCountdown commands:\n"
     puts stderr "\nPower commands:\n"
     puts stderr "\nMeasurement commands:\n"
+    puts stderr "$HELP(status)"    
+    puts stderr "$HELP(measure)\n"    
+    puts stderr "$HELP(header)"
     puts stderr "\nOther commands:\n"
     puts stderr "$HELP(sync)"
     puts stderr "$HELP(pin)"
@@ -197,6 +218,25 @@ proc print_device {} {
 
 
 
+proc power_factor {} {
+
+  global sem
+
+  if { $sem(power) == 1 && $sem(voltage) > 0 && $sem(ampere) > 0 } {
+
+    return [ format_decimal [ expr $sem(watt) / $sem(voltage) / $sem(ampere) ] ]
+
+  } else {
+
+    return "n/a"
+
+  }
+
+}
+
+
+
+
 proc print_measurement {} {
 
   global INIT
@@ -212,10 +252,23 @@ proc print_measurement {} {
   append out "\t  Ampere:         $sem(ampere) A\n"
   append out "\t  Watts:          $sem(watt) W\n"
   append out "\t  Frequency:      $sem(frequency) Hz\n"
-  if { $sem(power) == 1 } {
-    append out "\t  Power factor:   [ format_decimal [ expr $sem(watt) / $sem(voltage) / $sem(ampere) ] ]\n"
-  }
+  append out "\t  Power factor:   [ power_factor ]\n"
   append out "\n"
+
+  return $out
+
+}
+
+
+
+
+proc print_measurement_as_csv {} {
+
+  global sem
+
+  append out [ current_datetime_str ]
+  append out "\t$sem(power)\t$sem(voltage)\t$sem(ampere)"
+  append out "\t$sem(watt)\t$sem(frequency)\t[ power_factor ]"
 
   return $out
 
@@ -361,6 +414,15 @@ proc decimal_to_hex { d } {
 proc current_datetime {} {
 
   return [ clock format [ clock seconds ] -format "%Y %m %d %H %M %S" ]
+
+}
+
+
+
+
+proc current_datetime_str {} {
+
+  return [ clock format [ clock seconds ] -format "%Y-%m-%d %H:%M:%S" ]
 
 }
 
@@ -984,6 +1046,11 @@ proc do_command { command } {
       capture_measurement
 
     }
+    ^header\ measure$ {
+
+      set sem(header_measure) "Timestamp\tPower\tVolt (V)\tAmpere (A)\tWatt (W)\tFrequency (Hz)\tPower factor"
+
+    }    
     ^measure.*$ {
 
       set until 0
@@ -994,7 +1061,7 @@ proc do_command { command } {
         set until -1
       }
 
-      init $INIT(subscribe_measures)
+      init $INIT(auth)
 
       puts $sem(header_measure)
 
@@ -1002,6 +1069,7 @@ proc do_command { command } {
       while { $current_seconds < $until || $until == -1 } {
         capture_measurement
         puts [ print_measurement_as_csv ]
+        after 500
         set current_seconds [ clock seconds ]
       }
 

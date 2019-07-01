@@ -116,8 +116,6 @@ Notification handle = 0x002e value: 0f 11 04 00 01 00 00 00 eb 00 0c 32 00 00 00
                                     |  |  + Capture measurement response 0x0400
                                     |  + Length of payload starting w/ next byte incl. checksum
                                     + static start sequence for message, 0x0f
-
-
 ```
 
 Note: Typical 0xffff end sequence is missing in this response. This is probably since there is no room for it. 
@@ -170,11 +168,6 @@ NNotification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 6
                                     + static start sequence for message, 0x0f
 ```
 
-# request ???
-char-write-req 0x2b 0f050400000005ffff
-
-Notification handle = 0x002e value: 0f 11 04 00 01 00 00 41 ea 00 0c 32 00 00 00 00 00 00 6f
-
 # Set LED on / off
 ## on
 char-write-req 0x2b 0f090f0005010000000016ffff
@@ -192,6 +185,11 @@ char-write-req 0x2b 0f051100000012ffff
 
 Notification handle = 0x002e value: 0f 15 11 00 4d 4c 30 31 44 31 30 30 31 32 30 30 30 30 30 30
 Notification handle = 0x002e value: 00 00 64 ff ff
+
+# get name
+
+char-read-hnd 25 00
+Characteristic value/descriptor: 56 4f 4c 43 46 54 04 00 00 00 00 01 0d 02 00 1e
 
 # set name
 char-write-req 0x2b 0f170200000000000000000000000000000000000000000000ffff
