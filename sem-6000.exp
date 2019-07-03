@@ -66,6 +66,14 @@ set HELP(measure) "\
 set HELP(header) "\
   --header <measure|data>            - print header line for measurements or data"
 
+set HELP(led) "\
+  --led <on|off>                     - turn led ring on / off"
+
+set HELP(overload) "\
+  --overload <watts>\n\
+\                                   - set overload with high-water-mark and actions\n\
+\                                     watts - high-water-mark, max. 3680, e.g. 3680 for 3680W"
+
 set HELP(pin) "\
   --pin <1234|reset>                 - change PIN or reset to default PIN, i.e. 0000"
 
@@ -151,12 +159,13 @@ proc help { argv } {
     puts stderr "\nCountdown commands:\n"
     puts stderr "\nPower commands:\n"
     puts stderr "\nMeasurement commands:\n"
-    puts stderr "$HELP(status)"    
-    puts stderr "$HELP(measure)\n"    
+    puts stderr "$HELP(status)"
+    puts stderr "$HELP(measure)\n"
     puts stderr "$HELP(header)"
     puts stderr "\nOther commands:\n"
     puts stderr "$HELP(sync)"
     puts stderr "$HELP(pin)"
+    puts stderr "$HELP(led)"
     puts stderr "$HELP(print)"
     puts stderr "$HELP(dump)"
     puts stderr "$HELP(sleep)"
@@ -292,16 +301,16 @@ proc print_settings {} {
     append out "\tPrice:            [ format_decimal [ expr $sem(normal_price) / 100.0 ] ]\n"
     append out "\n"
     append out "\tNight mode:       [ expr $sem(night_mode) == 1 ? "on" : "off" ]\n"
- 
+
     if { $sem(night_mode) == 1 } {
- 
+
       append out "\tNight start:      [ minutes_to_time $sem(night_start) ]\n"
       append out "\tNight end:        [ minutes_to_time $sem(night_end) ]\n"
       append out "\tNight price:      [ format_decimal [ expr $sem(night_price) / 100.0 ] ]\n"
       append out "\n"
- 
+
     }
- 
+
   }
 
   return $out
@@ -446,7 +455,7 @@ proc format_decimal { d } {
 }
 
 
-  
+
 
 proc gatt_connect { mac } {
 
@@ -538,10 +547,10 @@ proc command_req { bytes } {
 
   set full_req {}
 
-  # static prefix 0x0f 
+  # static prefix 0x0f
   lappend full_req 15
 
-  # length of request 
+  # length of request
   set size [ expr [ llength $bytes ] + 1 ]
   lappend full_req $size
 
@@ -554,7 +563,7 @@ proc command_req { bytes } {
   set sum [ expr $sum & 255 ]
   lappend full_req $sum
 
-  # static suffix 0xffff 
+  # static suffix 0xffff
   lappend full_req 255
   lappend full_req 255
 
@@ -691,7 +700,7 @@ proc req_auth {} {
     lappend bytes 0
 
   }
-  
+
   set response [ command_req $bytes ]
 
   if { [ llength $response ] == 5 \
@@ -741,7 +750,7 @@ proc req_change_pin { new_pin } {
     lappend bytes [ expr 1 * [ string range $sem(pin) $i $i ] ]
 
   }
-  
+
   set response [ command_req $bytes ]
 
   if { [ llength $response ] == 5 \
@@ -787,7 +796,7 @@ proc req_reset_pin {} {
     lappend bytes 0
 
   }
-  
+
   set response [ command_req $bytes ]
 
   if { [ llength $response ] == 5 \
@@ -1025,6 +1034,99 @@ proc req_switch { s } {
 
 
 
+
+proc req_led { s } {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tSwitch led ring"
+
+  # Byte 1 - 2: LED ring command, 0x0f00
+  lappend bytes 15
+  lappend bytes 0
+
+  # Byte 3: static 0x05
+  lappend bytes 5
+
+  # Byte 4: Turn on (1) / turn off (0)
+  set s [ expr $s == 1 ? 1 : 0 ]
+  lappend bytes $s
+
+  # Byte 5 - 8: static 0x00000000
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 4 \
+      && [ lindex $response 0 ] == 15 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 5 \
+      && [ lindex $response 3 ] == 0 } {
+
+    log "INFO:\tLED successfully set"
+    set sem(led) $s
+    return 0
+
+  } else {
+
+    log "ERROR:\tSetting LED failed"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc set_overload { limit } {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tSet overload limit"
+
+  # Byte 1 - 2: LED ring command, 0x0f00
+  lappend bytes 5
+  lappend bytes 0
+
+  # Byte 3 - 4: overload
+  lappend bytes [ expr $limit >> 8 ]
+  lappend bytes [ expr $limit & 255 ]
+
+  # Byte 5 - 6: static 0x0000
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 3 \
+      && [ lindex $response 0 ] == 5 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 0 } {
+
+    log "INFO:\tOverload successfully set"
+    set sem(over_power) $limit
+    return 0
+
+  } else {
+
+    log "ERROR:\tSetting overload failed"
+    return -1
+
+  }
+
+}
+
+
+
+
 proc do_command { command } {
 
   global INIT
@@ -1046,11 +1148,30 @@ proc do_command { command } {
       capture_measurement
 
     }
+   ^on$ {
+
+      init $INIT(auth)
+      req_switch 1
+
+    }
+    ^off$ {
+
+      init $INIT(auth)
+      req_switch 0
+
+    }
+    ^toggle$ {
+
+      init $INIT(auth)
+      capture_measurement
+      req_switch [ expr $sem(power) == 0 ? 1 : 0 ]
+
+    }
     ^header\ measure$ {
 
       set sem(header_measure) "Timestamp\tPower\tVolt (V)\tAmpere (A)\tWatt (W)\tFrequency (Hz)\tPower factor"
 
-    }    
+    }
     ^measure.*$ {
 
       set until 0
@@ -1073,24 +1194,33 @@ proc do_command { command } {
         set current_seconds [ clock seconds ]
       }
 
-    }    
-    ^on$ {
+    }
+    ^led.*$ {
+
+      check_command $command 1 "led" {^led (on|off)$}
 
       init $INIT(auth)
-      req_switch 1
+      req_led [ expr [ lindex $command 1 ] == "on" ? 1 : 0 ]
 
     }
-    ^off$ {
+    ^overload.*$ {
+
+      check_command $command 1 "overload" {^overload [1-3]?[0-9]{1,3}$}
+
+      set limit [ lindex $command 1 ]
+
+      if { $limit < 1000 } {
+
+        set limit 1000
+
+      } elseif { $limit > 3680 } {
+
+        set limit 1000
+      }
 
       init $INIT(auth)
-      req_switch 0
 
-    }
-    ^toggle$ {
-
-      init $INIT(auth)
-      capture_measurement
-      req_switch [ expr $sem(power) == 0 ? 1 : 0 ]
+      set_overload $limit
 
     }
     ^pin.*$ {
@@ -1103,7 +1233,7 @@ proc do_command { command } {
       } else {
 
         check_command $command 1 "pin" {^pin [0-9]{4}$}
-        
+
         init 0
         req_change_pin [ lindex $command 1 ]
 
@@ -1115,7 +1245,7 @@ proc do_command { command } {
       init 255
       capture_measurement
 
-    }        
+    }
     ^print$ {
 
       print_sem
