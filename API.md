@@ -198,13 +198,14 @@ Notification handle = 0x002e value: 0f 05 0f 00 05 00 15 ff ff
 # Set overload power
 ```
 char-write-req 2b 0f0705000e60000074ffff
-                    | |   |   |   | + static end sequence of message, 0xffff
-                    | |   |   |   + checksum byte starting with length-byte, ending w/ byte before
-                    | |   |   + status 0x0000
-                    | |   | + overload value, low-byte
-                    | |   + overload value, high-byte
-                    | + Set overload command, 0x0500
-                    + static start sequence for message, 0x0f
+                  | | |   |   |   | + static end sequence of message, 0xffff
+                  | | |   |   |   + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   |   + status 0x0000
+                  | | |   + overload value, low-byte
+                  | | | + overload value, high-byte
+                  | | + Set overload command, 0x0500
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
 
 Notification handle = 0x002e value: 0f 04 05 00 00 06 ff ff
                                     |  |  |     |  |  + static end sequence of message, 0xffff
@@ -224,16 +225,32 @@ Notification handle = 0x002e value: 0f 04 05 00 00 06 ff ff
 
 
 # get name
+```
+char-read-hnd 3
+Characteristic value/descriptor: 56 6f 6c 74 63 72 61 66 74
 
 char-read-hnd 25 00
 Characteristic value/descriptor: 56 4f 4c 43 46 54 04 00 00 00 00 01 0d 02 00 1e
+```
 
 # set name
+```
 char-write-req 0x2b 0f170200000000000000000000000000000000000000000000ffff
-                      |   |                                       | + checksum
-                      |   +---------------------------------------+ Name in ASCII
-                      + set name command
+                    | | |   |                                 | |   + checksum
+                    | | |   |                                 | + static 0x0000
+                    | | |   +---------------------------------+ Name in ASCII, max. 18 characters
+                    | | + Set name command, 0x0200
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
 
+Notification handle = 0x002e value: 0f 04 02 00 00 03 ff ff
+                                    |  |  |     |  |  + static end sequence of message, 0xffff
+                                    |  |  |     |  + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     + always 0x00
+                                    |  |  + Set name command, 0x0200
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
 
 # Get serial
 char-write-req 0x2b 0f051100000012ffff
