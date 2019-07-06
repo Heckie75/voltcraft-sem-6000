@@ -248,10 +248,19 @@ Holladiewaldfee
 # Get serial
 ```
 char-write-req 0x2b 0f051100000012ffff
+                    | | |   |   + checksum
+                    | | |   + static 0x0000
+                    | | + Get serial command, 0x1100
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
+
 
 Notification handle = 0x002e value: 0f 15 11 00 4d 4c 30 31 44 31 30 30 31 32 30 30 30 30 30 30
 Notification handle = 0x002e value: 00 00 64 ff ff
 ```
+
+The serial number is ascii coded between bytes 5 and 20. In this example the serial is "ML01D10012000000"
+Note that there are two notifications!
 
 # Set tarrif
 ```
