@@ -89,6 +89,9 @@ set HELP(dump) "\
 set HELP(sleep) "\
   --sleep <n>                        - pause processing for n seconds"
 
+set HELP(device) "\
+  --device                           - read device meta information, e.g. name"
+
 set HELP(verbose) "\
   --verbose                          - print information about processing"
 
@@ -103,6 +106,7 @@ set INIT(auth)                 2
 set INIT(sync)                 4
 set INIT(settings)             8
 set INIT(measurement)          16
+set INIT(device)               32
 
 set HANDLE(req)                43
 set HANDLE(notification)       46
@@ -112,11 +116,13 @@ array set aliases              {}
 set sem(header_measure)        ""
 set sem(header_data)           ""
 
+set sem(init)                  0
+
 set sem(mac)                   ""
 set sem(pin)                   ""
+set sem(name)                  ""
+set sem(serial)                ""
 set sem(alias)                 ""
-
-set sem(init)                  0
 
 set sem(night_mode)            -1
 set sem(night_start)           ""
@@ -133,7 +139,7 @@ set sem(ampere)                -1
 set sem(frequency)             -1
 set sem(power_factor)          -1
 
-set sem(name)                  ""
+
 
 
 # prints help output
@@ -220,6 +226,14 @@ proc print_device {} {
   set out ""
   append out "\tMac:              $sem(mac)\n"
   append out "\tDevice PIN:       $sem(pin)\n"
+
+  if { ( $sem(init) & $INIT(device) ) == $INIT(device) } {
+
+    append out "\tName:             $sem(name)\n"
+    append out "\tSerial:           $sem(serial)\n"
+
+  }
+
   append out "\tAlias:            $sem(alias)\n"
   append out "\n"
 
@@ -495,6 +509,44 @@ proc gatt_disconnect {} {
 
 
 
+proc gatt_char_read_hnd { handle } {
+
+  global DELAY
+
+  set hnd_hex [ decimal_to_hex $handle ]
+
+  log "INFO:\t>>>\tchar-read-hnd $hnd_hex"
+
+  send "char-read-hnd $hnd_hex\r"
+
+  expect {
+    -indices -re "Characteristic value/descriptor: (.*)\r" {
+      after $DELAY
+      set buffer $expect_out(1,string)
+      log "INFO:\t<<<\tCharacteristic value/descriptor: $buffer"
+    }
+    timeout {
+      log "WARN:\tTimeout. Characteristic value/descriptor not received"
+      return $notification
+    }
+  }
+  
+  # convert value to byte list
+  set value {}
+  foreach s $buffer {
+    set check [ regexp {^[0-9A-Fa-f]+} $s ]
+    if { $check == 0 } {
+      continue
+    }
+    lappend value [ hex_to_decimal $s ]
+  }
+
+  return $value
+}
+
+
+
+
 proc gatt_char_write_req { handle bytes } {
 
   global DELAY
@@ -669,6 +721,14 @@ proc init { level } {
 
   }
 
+  if { ( $level & $INIT(device) ) == $INIT(device) && ( $sem(init) & $INIT(device) ) != $INIT(device) } {
+
+    # read device information
+    req_device
+
+  }
+
+
   return $sem(init)
 
 }
@@ -722,6 +782,39 @@ proc req_auth {} {
   }
 
 }
+
+
+
+
+proc req_device {} {
+
+  global sem
+  global INIT
+
+  # 1. Read name
+  log "INFO:\tRead name"
+
+  set b [ gatt_char_read_hnd 3 ]
+  
+  set name ""
+  foreach i $b {
+    append name [ binary format c* $i ]
+  }
+  if { $name != ""} {
+
+    set sem(name) $name
+    set sem(init) [ expr $sem(init) | $INIT(device) ]
+
+    log "INFO:\tname successfully read"
+
+  } else {
+
+    log "INFO:\tNo name received"
+
+  }
+
+}
+
 
 
 
@@ -1270,12 +1363,17 @@ proc do_command { command } {
 
       } elseif { $limit > 3680 } {
 
-        set limit 1000
+        set limit 3680
       }
 
       init $INIT(auth)
 
       set_overload $limit
+
+    }
+    ^device$ {
+
+      init $INIT(device)
 
     }
     ^name* {

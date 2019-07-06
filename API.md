@@ -216,24 +216,7 @@ Notification handle = 0x002e value: 0f 04 05 00 00 06 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
-# Set tarrif
-```
-15, 9, 15, 0, 4, normal price, night price, 0, 0, 0, 0, sum, 255, 255
-15, 9, 15, 0, 1, night mode (1|0), start minutes high-byte, start minutes low-byte, end minutes high-byte, end minutes low-byte, sum, 255, 255
-```
-
-
-
-# get name
-```
-char-read-hnd 3
-Characteristic value/descriptor: 56 6f 6c 74 63 72 61 66 74
-
-char-read-hnd 25 00
-Characteristic value/descriptor: 56 4f 4c 43 46 54 04 00 00 00 00 01 0d 02 00 1e
-```
-
-# set name
+# Set name
 ```
 char-write-req 0x2b 0f170200000000000000000000000000000000000000000000ffff
                     | | |   |                                 | |   + checksum
@@ -252,12 +235,29 @@ Notification handle = 0x002e value: 0f 04 02 00 00 03 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
+# get name
+```
+char-read-hnd 3
+Characteristic value/descriptor: 48 6f 6c 6c 61 64 69 65 77 61 6c 64 66 65 65
+
+Convert values to ascii,e.g. 
+
+Holladiewaldfee
+```
+
 # Get serial
+```
 char-write-req 0x2b 0f051100000012ffff
 
 Notification handle = 0x002e value: 0f 15 11 00 4d 4c 30 31 44 31 30 30 31 32 30 30 30 30 30 30
 Notification handle = 0x002e value: 00 00 64 ff ff
+```
 
+# Set tarrif
+```
+15, 9, 15, 0, 4, normal price, night price, 0, 0, 0, 0, sum, 255, 255
+15, 9, 15, 0, 1, night mode (1|0), start minutes high-byte, start minutes low-byte, end minutes high-byte, end minutes low-byte, sum, 255, 255
+```
 
 
 # reset data
@@ -290,42 +290,18 @@ com.cei.meter.actions.Config
 
 
 
-
-
-
-
-
-
-
-
-# Name
-
-
-# Version
-
-
-
-
 # Notifications
 
 well known notifications
 15 x
 
-x
-1 -> Password
-2 -> Set name
-3 -> switch tootle
 4 -> current power
-5 -> over power set
 8 -> Timer activity (start / stop)
 9 -> get timer
 15 -> set tarrif successful
-16 -> Led status, price information, valley price, overload power?
 17 -> serial number
 19 skip
 21
 22 -> random mode?
-23 -> Login status, password data
-255
 
 else it is a data notification
