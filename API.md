@@ -157,21 +157,21 @@ char-write-req 0x2b 0f051000000011ffff
                     + static start sequence for message, 0x0f
 
 NNotification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60 ac ff ff
-                                    |  |  |     |  |  |  |  |  |  |  |     |  |  |  + static end sequence of message, 0xffff
-                                    |  |  |     |  |  |  |  |  |  |  |     |  |  + checksum byte starting with length-byte, ending w/ byte before
-                                    |  |  |     |  |  |  |  |  |  |  |     |  + Over power low-byte
-                                    |  |  |     |  |  |  |  |  |  |  |     + Over power high-byte
-                                    |  |  |     |  |  |  |  |  |  |  + LED 1=on / 0=off
-                                    |  |  |     |  |  |  |  |  |  + night mode end in min lox-byte
-                                    |  |  |     |  |  |  |  |  + night mode end in min high-byte
-                                    |  |  |     |  |  |  |  + night mode start in min low-byte
-                                    |  |  |     |  |  |  + night mode start in min high-byte
-                                    |  |  |     |  |  + night price / 100.0
-                                    |  |  |     |  + normal Price / 100.0
-                                    |  |  |     + night mode active 1=yes, 0=no
-                                    |  |  + Request settings command, 0x1000
-                                    |  + Length of payload starting w/ next byte incl. checksum
-                                    + static start sequence for message, 0x0f
+                                     |  |  |     |  |  |  |  |  |  |  |     |  |  |  + static end sequence of message, 0xffff
+                                     |  |  |     |  |  |  |  |  |  |  |     |  |  + checksum byte starting with length-byte, ending w/ byte before
+                                     |  |  |     |  |  |  |  |  |  |  |     |  + Over power low-byte
+                                     |  |  |     |  |  |  |  |  |  |  |     + Over power high-byte
+                                     |  |  |     |  |  |  |  |  |  |  + LED 1=on / 0=off
+                                     |  |  |     |  |  |  |  |  |  + night mode end in min lox-byte
+                                     |  |  |     |  |  |  |  |  + night mode end in min high-byte
+                                     |  |  |     |  |  |  |  + night mode start in min low-byte
+                                     |  |  |     |  |  |  + night mode start in min high-byte
+                                     |  |  |     |  |  + night price / 100.0
+                                     |  |  |     |  + normal Price / 100.0
+                                     |  |  |     + night mode active 1=yes, 0=no
+                                     |  |  + Request settings command, 0x1000
+                                     |  + Length of payload starting w/ next byte incl. checksum
+                                     + static start sequence for message, 0x0f
 ```
 
 # Set LED ring
@@ -240,7 +240,7 @@ Notification handle = 0x002e value: 0f 04 02 00 00 03 ff ff
 char-read-hnd 3
 Characteristic value/descriptor: 48 6f 6c 6c 61 64 69 65 77 61 6c 64 66 65 65
 
-Convert values to ascii,e.g. 
+Convert values to ascii,e.g.
 
 Holladiewaldfee
 ```
@@ -262,12 +262,47 @@ Notification handle = 0x002e value: 00 00 64 ff ff
 The serial number is ascii coded between bytes 5 and 20. In this example the serial is "ML01D10012000000"
 Note that there are two notifications!
 
-# Set tarrif
+# Set prices
 ```
-15, 9, 15, 0, 4, normal price, night price, 0, 0, 0, 0, sum, 255, 255
-15, 9, 15, 0, 1, night mode (1|0), start minutes high-byte, start minutes low-byte, end minutes high-byte, end minutes low-byte, sum, 255, 255
+char-write-req 2b 0f90f00047b2d00000000b2ffff
+                  | | |     | | |       | + End sequence 0xffff
+                  | | |     | | |       + Checksum
+                  | | |     | | + static 0x00000000
+                  | | |     | + reduced price * 100
+                  | | |     + normal price * 100
+                  | | + Setprice command, 0x0f0004
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
+
+Notification handle = 0x2b value: 0f 05 0f 00 04 00 14 ff ff
+                                  |  |  |        |  |  + static end sequence of message, 0xffff
+                                  |  |  |        |  + checksum byte starting with length-byte, ending w/ byte before
+                                  |  |  |        + always 0x00
+                                  |  |  + Set price command, 0x0f0004
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
 ```
 
+# Reduced period
+```
+char-write-req 2b 0f090f000101005301288effff
+                  | | |     | |   |    | + End sequence 0xffff
+                  | | |     | |   |    + Checksum
+                  | | |     | |   + 2 bytes for end time in minutes, here 04:56
+                  | | |     | + 2 bytes for start time in minutes, here 01:23
+                  | | |     + reduced period on / off, 1 = on, 0 = off
+                  | | + Set reduced period command, 0x0f0001
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
+
+Notification handle = 0x2b value: 0f 05 0f 00 01 00 11 ff ff
+                                  |  |  |        |  |  + static end sequence of message, 0xffff
+                                  |  |  |        |  + checksum byte starting with length-byte, ending w/ byte before
+                                  |  |  |        + always 0x00
+                                  |  |  + Set reduced period command, 0x0f0001
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
+```
 
 # reset data
 char-write-req 0x2b

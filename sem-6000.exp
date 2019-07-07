@@ -66,6 +66,9 @@ set HELP(measure) "\
 set HELP(header) "\
   --header <measure|data>            - print header line for measurements or data"
 
+set HELP(settings) "\
+  --settings                         - request settings from device, i.e. overload, led, price"
+
 set HELP(led) "\
   --led <on|off>                     - turn led ring on / off"
 
@@ -74,23 +77,27 @@ set HELP(overload) "\
 \                                   - set overload with high-water-mark and actions\n\
 \                                     watts - high-water-mark, max. 3680, e.g. 3680 for 3680W"
 
+set HELP(price) "\
+  --price <normal price> \[<reduced price> <hh:mm> <hh:mm>]\n\
+\                                   - set price and optionally a reduced price with start and end time"
+
 set HELP(name) "\
-  name <name>                        - give smart meter a new name, max. 18 characters"
+  --name <name>                      - give smart meter a new name, max. 18 characters"
 
 set HELP(pin) "\
   --pin <1234|reset>                 - change PIN or reset to default PIN, i.e. 0000"
 
-set HELP(print) "\
-  --print                            - print gathered information"
+set HELP(device) "\
+  --device                           - read device meta information, i.e. name and serial no."
 
 set HELP(dump) "\
   --dump                             - request all information from device"
 
+set HELP(print) "\
+  --print                            - print gathered information"
+
 set HELP(sleep) "\
   --sleep <n>                        - pause processing for n seconds"
-
-set HELP(device) "\
-  --device                           - read device meta information, e.g. name"
 
 set HELP(verbose) "\
   --verbose                          - print information about processing"
@@ -124,13 +131,13 @@ set sem(name)                  ""
 set sem(serial)                ""
 set sem(alias)                 ""
 
-set sem(night_mode)            -1
-set sem(night_start)           ""
-set sem(night_end)             ""
-set sem(night_price)           -1
-set sem(normal_price)          -1
-set sem(over_power)            -1
 set sem(led)                   -1
+set sem(over_power)            -1
+set sem(normal_price)          -1
+set sem(reduced_mode)          -1
+set sem(reduced_start)         0
+set sem(reduced_end)           0
+set sem(reduced_price)         -1
 
 set sem(power)                 -1
 set sem(watt)                  -1
@@ -149,6 +156,7 @@ proc help { argv } {
 
   # print help for given command
   if { [llength $argv] == 2 && [lindex $argv 0] == "--help" } {
+
     set command [lindex $argv 1]
     puts stderr $HELP(usage)
 
@@ -157,8 +165,11 @@ proc help { argv } {
     } else {
       puts stderr "\nUnknown command <$command>.\n"
     }
+
     exit 1
+
   } elseif { [llength $argv ] < 1 || [ lindex $argv 0 ] == "--help" } {
+
     puts stderr "$HELP(usage)"
     puts stderr "\nBasic commands:\n"
     puts stderr "$HELP(on)"
@@ -167,14 +178,19 @@ proc help { argv } {
     puts stderr "\nScheduler commands:\n"
     puts stderr "\nCountdown commands:\n"
     puts stderr "\nPower commands:\n"
+    puts stderr "$HELP(led)"
+    puts stderr "$HELP(overload)\n"
     puts stderr "\nMeasurement commands:\n"
     puts stderr "$HELP(status)"
-    puts stderr "$HELP(measure)\n"
-    puts stderr "$HELP(header)"
+    puts stderr "$HELP(measure)"
+    puts stderr "$HELP(header)\n"
+    puts stderr "$HELP(price)"
     puts stderr "\nOther commands:\n"
     puts stderr "$HELP(sync)"
+    puts stderr "$HELP(name)"
     puts stderr "$HELP(pin)"
-    puts stderr "$HELP(led)"
+    puts stderr "$HELP(settings)"
+    puts stderr "$HELP(device)"
     puts stderr "$HELP(print)"
     puts stderr "$HELP(dump)"
     puts stderr "$HELP(sleep)"
@@ -182,7 +198,9 @@ proc help { argv } {
     puts stderr "$HELP(debug)"
     puts stderr "$HELP(help)"
     puts stderr ""
+
     exit 1
+
   }
 
 }
@@ -317,13 +335,13 @@ proc print_settings {} {
     append out "\n"
     append out "\tPrice:            [ format_decimal [ expr $sem(normal_price) / 100.0 ] ]\n"
     append out "\n"
-    append out "\tNight mode:       [ expr $sem(night_mode) == 1 ? "on" : "off" ]\n"
+    append out "\tReduced mode:     [ expr $sem(reduced_mode) == 1 ? "on" : "off" ]\n"
 
-    if { $sem(night_mode) == 1 } {
+    if { $sem(reduced_mode) == 1 } {
 
-      append out "\tNight start:      [ minutes_to_time $sem(night_start) ]\n"
-      append out "\tNight end:        [ minutes_to_time $sem(night_end) ]\n"
-      append out "\tNight price:      [ format_decimal [ expr $sem(night_price) / 100.0 ] ]\n"
+      append out "\tReduced price:    [ format_decimal [ expr $sem(reduced_price) / 100.0 ] ]\n"
+      append out "\tReduced start:    [ minutes_to_time $sem(reduced_start) ]\n"
+      append out "\tReduced end:      [ minutes_to_time $sem(reduced_end) ]\n"
       append out "\n"
 
     }
@@ -439,7 +457,13 @@ proc decimal_to_hex { d } {
 
 proc current_datetime {} {
 
-  return [ clock format [ clock seconds ] -format "%Y %m %d %H %M %S" ]
+  set dt {}
+  foreach n [ clock format [ clock seconds ] -format "%Y %m %e %k %M %S" ] {
+
+    lappend dt [ scan $n %d ]
+
+  }
+  return $dt
 
 }
 
@@ -459,6 +483,20 @@ proc minutes_to_time { m } {
 
   set time [clock format [expr 60 * $m] -format %H:%M -gmt true]
   return $time
+
+}
+
+
+
+
+proc time_in_minutes { time } {
+
+  set part [ split $time ":" ]
+  scan [ lindex $part 0 ] %d hours
+  scan [ lindex $part 1 ] %d minutes
+  set m [ expr $hours * 60 + $minutes ]
+
+  return $m
 
 }
 
@@ -1049,7 +1087,7 @@ proc req_sync {} {
   lappend bytes 0
 
   # Byte 3: Seconds
-  lappend bytes [ lindex $datetime 5 ]
+  lappend bytes [ expr [ lindex $datetime 5 ] * 1 ]
 
   # Byte 4: Minutes
   lappend bytes [ lindex $datetime 4 ]
@@ -1137,10 +1175,10 @@ proc parse_settings { b } {
 
   global sem
 
-  set sem(night_mode)     [ expr [ lindex $b 2 ] == 1 ? 1 : 0 ]
-  set sem(night_start)    [ expr [ lindex $b 5 ] << 8 | [ lindex $b 6 ] ]
-  set sem(night_end)      [ expr [ lindex $b 7 ] << 8 | [ lindex $b 8 ] ]
-  set sem(night_price)    [ expr [ lindex $b 4 ] ]
+  set sem(reduced_mode)     [ expr [ lindex $b 2 ] == 1 ? 1 : 0 ]
+  set sem(reduced_start)    [ expr [ lindex $b 5 ] << 8 | [ lindex $b 6 ] ]
+  set sem(reduced_end)      [ expr [ lindex $b 7 ] << 8 | [ lindex $b 8 ] ]
+  set sem(reduced_price)    [ expr [ lindex $b 4 ] ]
   set sem(normal_price)   [ expr [ lindex $b 3 ] ]
   set sem(over_power)     [ expr [ lindex $b 11 ] << 8 | [ lindex $b 12 ] ]
   set sem(led)            [ expr [ lindex $b 9 ] == 1 ? 1 : 0 ]
@@ -1338,6 +1376,108 @@ proc set_overload { limit } {
 
 
 
+proc set_price { normal reduced } {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tSet prices"
+
+  # Byte 1 - 3: Set price command, 0x0f0004
+  lappend bytes 15
+  lappend bytes 0
+  lappend bytes 4
+
+  # Byte 4: normal price
+  lappend bytes [ expr int( $normal * 100 ) & 255 ]
+
+  # Byte 5: reduced price
+  lappend bytes [ expr int( $reduced * 100 ) & 255 ]
+
+  # Byte 6: static 0x00000000
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 4 \
+      && [ lindex $response 0 ] == 15 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 4 } {
+
+    log "INFO:\tPrices successfully set"
+    set sem(normal_price) $normal
+    set sem(reduced_price) $reduced
+    return 0
+
+  } else {
+
+    log "ERROR:\tSetting prices failed"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc set_reduced_mode { mode start end } {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tSet reduced period"
+
+  # Byte 1 - 3: Set reduced period command, 0x0f0001
+  lappend bytes 15
+  lappend bytes 0
+  lappend bytes 1
+
+  # Byte 4: reduced mode on/off
+  lappend bytes [ expr $mode == 1 ? 1 : 0 ]
+
+  # Byte 5 - 6: reduced period start
+  set start_in_min [ time_in_minutes $start ]
+  lappend bytes [ expr $start_in_min >> 8 ]
+  lappend bytes [ expr $start_in_min & 255 ]
+
+  # Byte 7 - 8: reduced period end
+  set end_in_min [ time_in_minutes $end ]
+  lappend bytes [ expr $end_in_min >> 8 ]
+  lappend bytes [ expr $end_in_min & 255 ]
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 4 \
+      && [ lindex $response 0 ] == 15 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 1 } {
+
+    set sem(reduced_mode) $mode
+    set sem(reduced_start) $start_in_min
+    set sem(reduced_end) $end_in_min
+    log "INFO:\tReduced period successfully set"
+    return 0
+
+  } else {
+
+    log "ERROR:\tSetting reduced period failed"
+    return -1
+
+  }
+
+
+
+}
+
+
+
+
 proc do_command { command } {
 
   global INIT
@@ -1347,6 +1487,7 @@ proc do_command { command } {
   global data_per_minute
 
   switch -regexp $command {
+
     ^sync$ {
 
       init 0
@@ -1406,6 +1547,12 @@ proc do_command { command } {
       }
 
     }
+    ^settings$ {
+
+      init $INIT(auth)
+      req_settings
+
+    }
     ^led.*$ {
 
       check_command $command 1 "led" {^led (on|off)$}
@@ -1432,6 +1579,29 @@ proc do_command { command } {
       init $INIT(auth)
 
       set_overload $limit
+
+    }
+    ^price.*$ {
+
+      check_command $command 1 "price" {^price [01]\.[0-9]{2} ?([01]\.[0-9]{2} [0-2][0-9]:[0-5][0-9] [0-2][0-9]:[0-5][0-9]|)$}
+
+      set price [ lindex $command 1 ]
+      set reduced_price $price
+      set reduced_start "00:00"
+      set reduced_end "00:00"
+      set reduced_mode 0
+
+      if { [ llength $command ] > 2 } {
+        set reduced_price [ lindex $command 2 ]
+        set reduced_start [ lindex $command 3 ]
+        set reduced_end [ lindex $command 4 ]
+        set reduced_mode 1
+      }
+
+      init [ expr $INIT(auth) ]
+
+      set_price $price $reduced_price
+      set_reduced_mode $reduced_mode $reduced_start $reduced_end
 
     }
     ^device$ {
