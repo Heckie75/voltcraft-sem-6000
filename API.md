@@ -1,12 +1,9 @@
-FC:69:47:06:CB:C6
-
-(bluetooth.src == fc:69:47:06:cb:c6 || bluetooth.dst == fc:69:47:06:cb:c6) && ((btatt.opcode == 0x52))
+(bluetooth.src == fc:69:47:06:cb:c6 || bluetooth.dst == fc:69:47:06:cb:c6)
 
 https://www.revogi.com/smart-power/power-plug-eu/#section0
-https://git.geekify.de/sqozz/sem6000/src/commit/3673e31ffcd1ceaed6969dafb0f6dd967c253d11/sem6000.py
 
-
-# Authorization with PIN
+# PIN
+## Authorization with PIN
 ```
 char-write-req 0x2b 0f0c170000000000000000000018ffff
                     | | |   | |     | |       | +  static end sequence of message, 0xffff
@@ -30,7 +27,7 @@ Notification handle = 0x002e value: 0f 06 17 00 00 00 00 18 ff ff
 ```
 
 
-# Change PIN
+## Change PIN
 ```
 char-write-req 0x2b 0f0c170001010203040000000018ffff
                     | | |     |       |       | +  static end sequence of message, 0xffff
@@ -51,7 +48,7 @@ Notification handle = 0x002e value: 0f 06 17 00 00 01 00 18 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
-# Reset PIN to "0000"
+## Reset PIN to "0000"
 ```
 char-write-req 0x2b 0f0c170002000000000000000018ffff
                     | | |   | |               | +  static end sequence of message, 0xffff
@@ -72,56 +69,8 @@ Notification handle = 0x002e value: 0f 06 17 00 00 02 00 18 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
-# Switch on / off
-```
-char-write-req 0x2b 0f06030000000004ffff
-                    | | |   | |   | + static end sequence of message, 0xffff
-                    | | |   | |   + checksum byte starting with length-byte, ending w/ byte before
-                    | | |   | + Static 0x0000
-                    | | |   + 0x01 = turn on, 0x00 = turn off
-                    | | + Switch command 0x0300
-                    | + Length of payload starting w/ next byte incl. checksum
-                    + static start sequence for message, 0x0f
-
-
-Notification handle = 0x002e value: 0f 04 03 00 00 04 ff ff
-                                    |  |  |     |  |  + static end sequence of message, 0xffff
-                                    |  |  |     |  + checksum byte starting with length-byte, ending w/ byte before
-                                    |  |  |     + 0 = success
-                                    |  |  + Switch command 0x0300
-                                    |  + Length of payload starting w/ next byte incl. checksum
-                                    + static start sequence for message, 0x0f
-```
-
-# Capture measurement
-```
-char-write-req 0x2b 0f050400000005ffff
-                    | | |       | + static end sequence of message, 0xffff
-                    | | |       + checksum byte starting with length-byte, ending w/ byte before
-                    | | + Capture measurement command 0x040000
-                    | + Length of payload starting w/ next byte incl. checksum
-                    + static start sequence for message, 0x0f
-
-
-Notification handle = 0x002e value: 0f 11 04 00 01 00 00 00 eb 00 0c 32 00 00 00 00 00 00 2f
-                                    |  |  |     |  |        |  |     |                    |  + Static end sequence (0xffff) is missing in this notification!
-                                    |  |  |     |  |        |  |     |                    + checksum byte starting with length-byte
-                                    |  |  |     |  |        |  |     |
-                                    |  |  |     |  |        |  |     + frequency (Hz)
-                                    |  |  |     |  |        |  + Ampere/1000 (A), 2 bytes
-                                    |  |  |     |  |        + Voltage (V)
-                                    |  |  |     |  |
-                                    |  |  |     |  + Watt/1000, 3 bytes
-                                    |  |  |     + Power, 0 = off, 1 = on
-                                    |  |  + Capture measurement response 0x0400
-                                    |  + Length of payload starting w/ next byte incl. checksum
-                                    + static start sequence for message, 0x0f
-```
-
-Note: Typical 0xffff end sequence is missing in this response. This is probably since there is no room for it.
-
-
-# Synchronize datetime
+# Setup and settings
+## Synchronize datetime
 ```
 char-write-req 0x2b 0f0c010029180a160607e3000053ffff
                     | | |   | | | | | | | |   | + always 0xffff
@@ -146,7 +95,7 @@ Notification handle = 0x002e value: 0f 04 01 00 00 02 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
-# request settings
+## Request settings
 ```
 char-write-req 0x2b 0f051000000011ffff
                     | | |   |   | + always ffff
@@ -156,25 +105,25 @@ char-write-req 0x2b 0f051000000011ffff
                     | + Length of payload starting w/ next byte incl. checksum
                     + static start sequence for message, 0x0f
 
-NNotification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60 ac ff ff
+Notification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60 ac ff ff
                                      |  |  |     |  |  |  |  |  |  |  |     |  |  |  + static end sequence of message, 0xffff
                                      |  |  |     |  |  |  |  |  |  |  |     |  |  + checksum byte starting with length-byte, ending w/ byte before
                                      |  |  |     |  |  |  |  |  |  |  |     |  + Over power low-byte
                                      |  |  |     |  |  |  |  |  |  |  |     + Over power high-byte
                                      |  |  |     |  |  |  |  |  |  |  + LED 1=on / 0=off
-                                     |  |  |     |  |  |  |  |  |  + night mode end in min lox-byte
-                                     |  |  |     |  |  |  |  |  + night mode end in min high-byte
-                                     |  |  |     |  |  |  |  + night mode start in min low-byte
-                                     |  |  |     |  |  |  + night mode start in min high-byte
-                                     |  |  |     |  |  + night price / 100.0
+                                     |  |  |     |  |  |  |  |  |  + reduced mode end in min lox-byte
+                                     |  |  |     |  |  |  |  |  + reduced mode end in min high-byte
+                                     |  |  |     |  |  |  |  + reduced mode start in min low-byte
+                                     |  |  |     |  |  |  + reduced mode start in min high-byte
+                                     |  |  |     |  |  + reduced price / 100.0
                                      |  |  |     |  + normal Price / 100.0
-                                     |  |  |     + night mode active 1=yes, 0=no
+                                     |  |  |     + reduced mode active 1=yes, 0=no
                                      |  |  + Request settings command, 0x1000
                                      |  + Length of payload starting w/ next byte incl. checksum
                                      + static start sequence for message, 0x0f
 ```
 
-# Set LED ring
+## Set LED ring
 ```
 char-write-req 0x2b 0f090f0005010000000016ffff
                     | | |   | | |       | + always 0xffff
@@ -195,7 +144,7 @@ Notification handle = 0x002e value: 0f 05 0f 00 05 00 15 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
-# Set overload power
+## Set overload power
 ```
 char-write-req 2b 0f0705000e60000074ffff
                   | | |   |   |   | + static end sequence of message, 0xffff
@@ -216,53 +165,7 @@ Notification handle = 0x002e value: 0f 04 05 00 00 06 ff ff
                                     + static start sequence for message, 0x0f
 ```
 
-# Set name
-```
-char-write-req 0x2b 0f170200000000000000000000000000000000000000000000ffff
-                    | | |   |                                 | |   + checksum
-                    | | |   |                                 | + static 0x0000
-                    | | |   +---------------------------------+ Name in ASCII, max. 18 characters
-                    | | + Set name command, 0x0200
-                    | + Length of payload starting w/ next byte incl. checksum
-                    + static start sequence for message, 0x0f
-
-Notification handle = 0x002e value: 0f 04 02 00 00 03 ff ff
-                                    |  |  |     |  |  + static end sequence of message, 0xffff
-                                    |  |  |     |  + checksum byte starting with length-byte, ending w/ byte before
-                                    |  |  |     + always 0x00
-                                    |  |  + Set name command, 0x0200
-                                    |  + Length of payload starting w/ next byte incl. checksum
-                                    + static start sequence for message, 0x0f
-```
-
-# get name
-```
-char-read-hnd 3
-Characteristic value/descriptor: 48 6f 6c 6c 61 64 69 65 77 61 6c 64 66 65 65
-
-Convert values to ascii,e.g.
-
-Holladiewaldfee
-```
-
-# Get serial
-```
-char-write-req 0x2b 0f051100000012ffff
-                    | | |   |   + checksum
-                    | | |   + static 0x0000
-                    | | + Get serial command, 0x1100
-                    | + Length of payload starting w/ next byte incl. checksum
-                    + static start sequence for message, 0x0f
-
-
-Notification handle = 0x002e value: 0f 15 11 00 4d 4c 30 31 44 31 30 30 31 32 30 30 30 30 30 30
-Notification handle = 0x002e value: 00 00 64 ff ff
-```
-
-The serial number is ascii coded between bytes 5 and 20. In this example the serial is "ML01D10012000000"
-Note that there are two notifications!
-
-# Set prices
+## Set prices
 ```
 char-write-req 2b 0f90f00047b2d00000000b2ffff
                   | | |     | | |       | + End sequence 0xffff
@@ -283,7 +186,7 @@ Notification handle = 0x2b value: 0f 05 0f 00 04 00 14 ff ff
                                   + static start sequence for message, 0x0f
 ```
 
-# Reduced period
+## Set reduced period
 ```
 char-write-req 2b 0f090f000101005301288effff
                   | | |     | |   |    | + End sequence 0xffff
@@ -304,48 +207,257 @@ Notification handle = 0x2b value: 0f 05 0f 00 01 00 11 ff ff
                                   + static start sequence for message, 0x0f
 ```
 
-# reset data
-char-write-req 0x2b
-15, 5, 16, 0, 0, 0, 17, -1, -1
 
-15, 9, 15, 0, 0, 0, 0, 0, 0, 0, 16, -1, -1
-15, 9, 15, 0, 2, 0, 0, 0, 0, 0, 18, -1, -1
+# Switch on / off
+```
+char-write-req 0x2b 0f06030000000004ffff
+                    | | |   | |   | + static end sequence of message, 0xffff
+                    | | |   | |   + checksum byte starting with length-byte, ending w/ byte before
+                    | | |   | + Static 0x0000
+                    | | |   + 0x01 = turn on, 0x00 = turn off
+                    | | + Switch command 0x0300
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
 
-# request randommode
+
+Notification handle = 0x002e value: 0f 04 03 00 00 04 ff ff
+                                    |  |  |     |  |  + static end sequence of message, 0xffff
+                                    |  |  |     |  + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     + 0 = success
+                                    |  |  + Switch command 0x0300
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
+# Timer
+## Get status
+```
+char-write-req 2b 0f05090000000affff
+
+Notification handle = 0x2b value: 0f 0e 09 00 01 10 04 10 08 07 13 01 51 45 00 e8 ff ff
+                                  |  |  |     |  |  |  |  |  |  |  |           |  + static end sequence of message, 0xffff
+                                  |  |  |     |  |  |  |  |  |  |  |           + checksum byte starting with length-byte, ending w/ byte before
+                                  |  |  |     |  |  |  |  |  |  |  + Origin runtime in seconds, 3 bytes
+                                  |  |  |     |  |  |  |  |  |  + target year
+                                  |  |  |     |  |  |  |  |  + target Month
+                                  |  |  |     |  |  |  |  + target day on month
+                                  |  |  |     |  |  |  + target hour
+                                  |  |  |     |  |  + target minute
+                                  |  |  |     |  + target second
+                                  |  |  |     + Action, 1 = turn on, 2 = turn off
+                                  |  |  + Request timer status command, 0x0900
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
+```
+
+## Set timer
+```
+char-write-req 2b 0f0c0800012d1c1607071300008affff
+
+15
+11
+8
+0
+0 - 1 = on, 2 = off
+0 - target second
+0 - target minute
+0 - target hour
+0 - target day of month
+0 - target month
+0 - target year, 2 digits
+0
+0
+255
+255
+
+Notification handle = 0x2b value: 0f 04 08 00 00 09 ff ff
+```
+
+## Stop timer
+```
+char-write-req 2b 0f0c080000000000000000000009ffff
+
+Notification handle = 0x002e value: 0f 04 08 00 00 09 ff ff
+```
+
+# Scheduler
+## Request scheduler
+15
+6
+20
+0
+0 - slot
+0
+0
+9
+255
+255
+
+## Set scheduler
+15
+15
+19
+0
+0 -> 1 = edit then give slot
+0 -> slot if edit existing slot else 0
+1
+0 - action, 1 = on, 0 = off
+0 - weekday mask
+0 - year
+0 - month
+0 - day
+0 - hour
+0 - minute
+0
+0
+0
+255
+255
+
+## Reset scheduler
+15
+16
+19
+0
+2
+0 - slot
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+0
+255
+255
+
+# Random mode
+## Get status
+
 ```
 char-write-req 0x2b 0f051600000017ffff
 
 Notification handle = 0x002e value: 0f 0b 16 00 00 00 00 00 00 00 00 00 17 ff ff
+
+4: 1 = on, 2 = off
+5: weekday
+6-7: start time
+8-9: end time
 ```
 
-
-# requset / reset date?
-15, 9, 15, 0, 5, data, 0,0,0,0, sum 255, 255
-
-com.cei.meter.activity
-com.cei.meter.fragment
-com.cei.meter.thread.BleThread.class
-com.cei.meter.actions.Config
-
-
-
-
-----
-
-
-
-# Notifications
-
-well known notifications
-15 x
-
-4 -> current power
-8 -> Timer activity (start / stop)
-9 -> get timer
-15 -> set tarrif successful
-17 -> serial number
-19 skip
+## Set random mode
+15
+11
 21
-22 -> random mode?
+0
+0 - 1 = on, 0 = off
+0 - weekday mask
+0 - start time
+0 - start time
+0 - end time
+0 - end time
+0
+0
+0
+255
+255
 
-else it is a data notification
+
+# Measure power and consumption
+## Capture measurement
+```
+char-write-req 0x2b 0f050400000005ffff
+                    | | |       | + static end sequence of message, 0xffff
+                    | | |       + checksum byte starting with length-byte, ending w/ byte before
+                    | | + Capture measurement command 0x040000
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
+
+
+Notification handle = 0x002e value: 0f 11 04 00 01 00 00 00 eb 00 0c 32 00 00 00 00 00 00 2f
+                                    |  |  |     |  |        |  |     |        |           |  + Static end sequence (0xffff) is missing in this notification!
+                                    |  |  |     |  |        |  |     |        |           + checksum byte starting with length-byte
+                                    |  |  |     |  |        |  |     |        + total consumption, 4 bytes
+                                    |  |  |     |  |        |  |     + frequency (Hz)
+                                    |  |  |     |  |        |  + Ampere/1000 (A), 2 bytes
+                                    |  |  |     |  |        + Voltage (V)
+                                    |  |  |     |  |
+                                    |  |  |     |  + Watt/1000, 3 bytes
+                                    |  |  |     + Power, 0 = off, 1 = on
+                                    |  |  + Capture measurement response 0x0400
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
+
+Note: Typical 0xffff end sequence is missing in this response. This is probably since there is no room for it.
+
+## Reguest data
+15
+5
+10 - 10 = day, 11 = month, 12 = year (total)
+0
+0
+0
+11
+255
+255
+
+## Reset data
+char-write-req 0x2b
+
+15, 9, 15, 0, 0, 0, 0, 0, 0, 0, 16, 255, 255
+15, 9, 15, 0, 2, 0, 0, 0, 0, 0, 18, 255, 255
+
+0 - all data
+2 - stored consumption
+
+# Device settings
+## Get name
+```
+char-read-hnd 3
+Characteristic value/descriptor: 48 6f 6c 6c 61 64 69 65 77 61 6c 64 66 65 65
+
+Convert values to ascii,e.g.
+
+Holladiewaldfee
+```
+
+## Set name
+```
+char-write-req 0x2b 0f170200000000000000000000000000000000000000000000ffff
+                    | | |   |                                 | |   + checksum
+                    | | |   |                                 | + static 0x0000
+                    | | |   +---------------------------------+ Name in ASCII, max. 18 characters
+                    | | + Set name command, 0x0200
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
+
+Notification handle = 0x002e value: 0f 04 02 00 00 03 ff ff
+                                    |  |  |     |  |  + static end sequence of message, 0xffff
+                                    |  |  |     |  + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     + always 0x00
+                                    |  |  + Set name command, 0x0200
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
+
+## Get serial
+```
+char-write-req 0x2b 0f051100000012ffff
+                    | | |   |   + checksum
+                    | | |   + static 0x0000
+                    | | + Get serial command, 0x1100
+                    | + Length of payload starting w/ next byte incl. checksum
+                    + static start sequence for message, 0x0f
+
+
+Notification handle = 0x002e value: 0f 15 11 00 4d 4c 30 31 44 31 30 30 31 32 30 30 30 30 30 30
+Notification handle = 0x002e value: 00 00 64 ff ff
+```
+
+The serial number is ascii coded between bytes 5 and 20. In this example the serial is "ML01D10012000000"
+Note that there are two notifications!

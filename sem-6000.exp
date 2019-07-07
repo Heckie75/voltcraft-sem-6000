@@ -60,6 +60,16 @@ set HELP(toggle) "\
 set HELP(status) "\
   --status                           - get status incl. voltage, ampere, watts, power factor and frequency"
 
+set HELP(countdown) "\
+  --countdown <on|off> <hh:mm|+mm>   - set countdown action and runtime\n\
+\                                     on|off - action of countdown\n\
+\                                     hh:mm  - given ETA\n\
+\                                     +mm    - given runtime in minutes\n\
+\n\
+  --countdown <reset>                - reset countdown\n\
+\n\
+  --countdown                        - query status of countdown"
+
 set HELP(measure) "\
   --measure \[<s>\]                    - take measurements, optional duration in seconds (use 0 for single), otherwise forever"
 
@@ -114,6 +124,7 @@ set INIT(sync)                 4
 set INIT(settings)             8
 set INIT(measurement)          16
 set INIT(device)               32
+set INIT(countdown)            64
 
 set HANDLE(req)                43
 set HANDLE(notification)       46
@@ -145,6 +156,9 @@ set sem(voltage)               -1
 set sem(ampere)                -1
 set sem(frequency)             -1
 set sem(power_factor)          -1
+set sem(total)                 -1
+
+set sem(countdown)             -1
 
 
 
@@ -223,7 +237,7 @@ proc print_sem {} {
 #  for { set i 0 } { $i < 6 } { incr i } {
 #    append out [ print_scheduler $i ]
 #  }
-#  append out [ print_countdown ]
+   append out [ print_countdown ]
 #  append out [ print_overload ]
 #  append out [ print_standby ]
 #  append out $sem(header_data)
@@ -242,17 +256,17 @@ proc print_device {} {
   global sem
 
   set out ""
-  append out "\tMac:              $sem(mac)\n"
-  append out "\tDevice PIN:       $sem(pin)\n"
+  append out "\tMac:                 $sem(mac)\n"
+  append out "\tDevice PIN:          $sem(pin)\n"
 
   if { ( $sem(init) & $INIT(device) ) == $INIT(device) } {
 
-    append out "\tName:             $sem(name)\n"
-    append out "\tSerial:           $sem(serial)\n"
+    append out "\tName:                $sem(name)\n"
+    append out "\tSerial:              $sem(serial)\n"
 
   }
 
-  append out "\tAlias:            $sem(alias)\n"
+  append out "\tAlias:               $sem(alias)\n"
   append out "\n"
 
   return $out
@@ -291,12 +305,13 @@ proc print_measurement {} {
   }
 
   append out "\tStatus:\n"
-  append out "\t  Power:          [ expr $sem(power) == 1 ? "on" : "off" ]\n"
-  append out "\t  Voltage:        $sem(voltage) VAC\n"
-  append out "\t  Ampere:         $sem(ampere) A\n"
-  append out "\t  Watts:          $sem(watt) W\n"
-  append out "\t  Frequency:      $sem(frequency) Hz\n"
-  append out "\t  Power factor:   [ power_factor ]\n"
+  append out "\t  Power:             [ expr $sem(power) == 1 ? "on" : "off" ]\n"
+  append out "\t  Voltage:           $sem(voltage) VAC\n"
+  append out "\t  Ampere:            $sem(ampere) A\n"
+  append out "\t  Watts:             $sem(watt) W\n"
+  append out "\t  Frequency:         $sem(frequency) Hz\n"
+  append out "\t  Power factor:      [ power_factor ]\n"
+  append out "\t  Total consumption: $sem(total) kWh\n"  
   append out "\n"
 
   return $out
@@ -330,22 +345,45 @@ proc print_settings {} {
 
   if { ( $sem(init) & $INIT(settings) ) == $INIT(settings) } {
 
-    append out "\tLED ring:         [ expr $sem(led) == 1 ? "on" : "off" ]\n"
-    append out "\tOverload limit:   $sem(over_power) W\n"
+    append out "\tLED ring:            [ expr $sem(led) == 1 ? "on" : "off" ]\n"
+    append out "\tOverload limit:      $sem(over_power) W\n"
     append out "\n"
-    append out "\tPrice:            [ format_decimal [ expr $sem(normal_price) / 100.0 ] ]\n"
+    append out "\tPrice:               [ format_decimal [ expr $sem(normal_price) / 100.0 ] ]\n"
     append out "\n"
-    append out "\tReduced mode:     [ expr $sem(reduced_mode) == 1 ? "on" : "off" ]\n"
+    append out "\tReduced mode:        [ expr $sem(reduced_mode) == 1 ? "on" : "off" ]\n"
 
     if { $sem(reduced_mode) == 1 } {
 
-      append out "\tReduced price:    [ format_decimal [ expr $sem(reduced_price) / 100.0 ] ]\n"
-      append out "\tReduced start:    [ minutes_to_time $sem(reduced_start) ]\n"
-      append out "\tReduced end:      [ minutes_to_time $sem(reduced_end) ]\n"
+      append out "\tReduced price:       [ format_decimal [ expr $sem(reduced_price) / 100.0 ] ]\n"
+      append out "\tReduced start:       [ minutes_to_time $sem(reduced_start) ]\n"
+      append out "\tReduced end:         [ minutes_to_time $sem(reduced_end) ]\n"
       append out "\n"
 
     }
 
+  }
+
+  return $out
+
+}
+
+
+
+
+proc print_countdown {} {
+
+  global sem
+
+  set out ""
+
+  if { $sem(countdown) > 0 } {
+    append out "\tCountdown:           on\n"
+    append out "\t  Action:            [ expr $sem(countdown) == 1 ? "on" : "off" ]\n"
+    append out "\t  Started at:        [ datetime_str $sem(countdown_origin) ]\n"
+    append out "\t  ETA:               [ datetime_str $sem(countdown_schedule) ]\n"
+    append out "\n"
+  } else {
+     append out "\tCountdown:           off\n"
   }
 
   return $out
@@ -457,8 +495,17 @@ proc decimal_to_hex { d } {
 
 proc current_datetime {} {
 
+  return [ datetime [ clock seconds ] ]
+
+}
+
+
+
+
+proc datetime { secs } {
+
   set dt {}
-  foreach n [ clock format [ clock seconds ] -format "%Y %m %e %k %M %S" ] {
+  foreach n [ clock format $secs -format "%Y %m %e %k %M %S" ] {
 
     lappend dt [ scan $n %d ]
 
@@ -470,9 +517,38 @@ proc current_datetime {} {
 
 
 
+proc current_time_str {} {
+
+  return [ clock format [ clock seconds ] -format "%H:%M" ]
+
+}
+
+
+
+
 proc current_datetime_str {} {
 
-  return [ clock format [ clock seconds ] -format "%Y-%m-%d %H:%M:%S" ]
+  return [ clock format [ clock seconds ] -format "%Y-%m-%d %H:%M:%S" -gmt true ]
+
+}
+
+
+
+
+proc datetime_str { secs } {
+
+  set secs [ expr $secs - [ time_offset ] ]
+  return [ clock format $secs -format "%Y-%m-%d %H:%M:%S" -gmt true ]
+
+}
+
+
+
+
+proc time_str { secs } {
+
+  set secs [ expr $secs - [ time_offset ] ]
+  return [ clock format $secs -format "%H:%M:%S" -gmt true ]
 
 }
 
@@ -481,7 +557,7 @@ proc current_datetime_str {} {
 
 proc minutes_to_time { m } {
 
-  set time [clock format [expr 60 * $m] -format %H:%M -gmt true]
+  set time [clock format [expr 60 * $m] -format %H:%M -gmt true ]
   return $time
 
 }
@@ -503,9 +579,85 @@ proc time_in_minutes { time } {
 
 
 
+proc time_in_secs { time } {
+
+  set part [ split $time ":" ]
+  scan [ lindex $part 0 ] %d hours
+  scan [ lindex $part 1 ] %d minutes
+
+  set seconds 0
+  if { [llength $part ] == 2 } {
+
+    scan [ lindex $part 2 ] %d seconds
+
+  } 
+
+  set s [ expr $hours * 3600 + $minutes * 60 + $seconds ]
+
+  return $s
+
+}
+
+
+
+
+proc time_offset {} {
+
+  return [ clock scan "1970-01-01 00:00:00" -format "%Y-%m-%d %H:%M:%S" -gmt true ]
+
+}
+
+
+
+
+proc datetime_in_secs { s } {
+
+  return [ expr [ clock scan $s -format "%Y-%m-%d %H:%M:%S" -gmt true ] - [ time_offset ] ]
+
+}
+
+
+
+
+proc calc_time { base time } {
+
+  if { [ string first ":" $time ] == -1 } {
+    set s [ expr ( [ time_in_minutes $base ] + $time ) * 60 ]
+    return [ clock format $s -format %H:%M -gmt true ]
+  }
+
+  set part [ split $time ":" ]
+  scan [ lindex $part 0 ] %d hours
+  scan [ lindex $part 1 ] %d minutes
+  set s [ expr $hours % 3600 * 3600 + $minutes % 60 * 60 ]
+
+  return [ clock format $s -format %H:%M -gmt true ]
+
+}
+
+
+
+
 proc format_decimal { d } {
 
   return [ format %.2f $d ]
+
+}
+
+
+
+
+proc with_leading_zeros { v n } {
+
+  set s ""
+
+  for { set i 0 } { $i < $n } { incr i } {
+    append s "0"
+  }
+
+  append s $v
+
+  return [ string range $s [ expr [ string length $s ] - $n ] end ]
 
 }
 
@@ -785,6 +937,13 @@ proc init { level } {
 
   }
 
+  if { ( $level & $INIT(countdown) ) == $INIT(countdown) && ( $sem(init) & $INIT(countdown) ) != $INIT(countdown) } {
+
+    # request countdown state
+    req_countdown
+    set sem(init) [ expr $sem(init) | $INIT(countdown) ]
+
+  }
 
   return $sem(init)
 
@@ -1236,6 +1395,9 @@ proc parse_measurement { b } {
   set sem(voltage)      [ expr [ lindex $b 6 ] ]
   set sem(ampere)       [ expr ( [ lindex $b 7 ] << 8  | [ lindex $b 8 ] ) / 1000.0 ]
   set sem(frequency)    [ expr [ lindex $b 9 ] ]
+  set sem(total)        [ expr ( [ lindex $b 12 ] << 24 | [ lindex $b 13 ] << 16 | [ lindex $b 14 ] << 8  | [ lindex $b 15 ] ) / 1000.0 ]
+
+  log [ print_measurement ]
 
 }
 
@@ -1324,6 +1486,174 @@ proc req_led { s } {
   } else {
 
     log "ERROR:\tSetting LED failed"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc req_countdown {} {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tRequest countdown state"
+
+  # Request count state command, 0x09000000
+  lappend bytes 9
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 13 \
+      && [ lindex $response 0 ] == 9 \
+      && [ lindex $response 1 ] == 0 } {
+
+    log "INFO:\tCountdown successfully requested"
+    parse_countdown_state $response
+    return 0
+
+  } else {
+
+    log "ERROR:\tRequesting countdown failed"
+    return -1
+
+  }
+  
+}
+
+
+
+
+proc parse_countdown_state { b } {
+
+  global sem
+
+  set dt_str "20"
+  append dt_str [ with_leading_zeros [ lindex $b 8 ] 2 ]
+  append dt_str "-"
+  append dt_str [ with_leading_zeros [ lindex $b 7 ] 2 ]
+  append dt_str "-"
+  append dt_str [ with_leading_zeros [ lindex $b 6 ] 2 ]
+  append dt_str " "
+  append dt_str [ with_leading_zeros [ lindex $b 5 ] 2 ]
+  append dt_str ":"
+  append dt_str [ with_leading_zeros [ lindex $b 4 ] 2 ]
+  append dt_str ":"
+  append dt_str [ with_leading_zeros [ lindex $b 3 ] 2 ]
+
+  set origin_runtime_sec      [ expr ( [ lindex $b 9 ] << 16 ) | ( [ lindex $b 10 ] << 8 ) | [ lindex $b 11 ] ]
+  set sem(countdown)          [ lindex $b 2 ]
+  set sem(countdown_schedule) [ datetime_in_secs $dt_str ]
+  set sem(countdown_origin)   [ expr [ datetime_in_secs $dt_str ] - $origin_runtime_sec ]
+
+  log [ print_countdown ]
+
+}
+
+
+
+
+proc set_countdown { action runtime } {
+
+  global sem
+
+  set bytes {}
+
+  set target [ expr [ datetime_in_secs [ current_datetime_str ] ] + [ time_in_secs $runtime ] ]
+  set datetime [ datetime $target ]
+
+  log "INFO:\tset countdown"
+
+  # Byte 1-2: set countdown command, 0x0800
+  lappend bytes 8
+  lappend bytes 0
+
+  # Byte 3: action
+  lappend bytes [ expr $action == 1 ? 1 : 2 ]
+
+  # Byte 4: Target seconds
+  lappend bytes [ lindex $datetime 5 ]
+
+  # Byte 5: Target minutes
+  lappend bytes [ lindex $datetime 4 ]
+
+  # Byte 6: Target hour
+  lappend bytes [ lindex $datetime 3 ]
+
+  # Byte 7: Target day of month
+  lappend bytes [ lindex $datetime 2 ]
+
+  # Byte 8: Target month
+  lappend bytes [ lindex $datetime 1 ]
+
+  # Byte 9-10: Target year
+  lappend bytes [ expr [ lindex $datetime 0 ] % 2000 ]
+
+  # Byte 11-12: static 0x0000
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 3 \
+      && [ lindex $response 0 ] == 8 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 0 } {
+
+    log "INFO:\tCountdown successfully set"
+    return 0
+
+  } else {
+
+    log "ERROR:\tSetting countdown failed"
+    return -1
+
+  }  
+
+}
+
+
+
+
+proc reset_countdown {} {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tReset countdown"
+
+  # Byte 1-2: set countdown command, 0x0800
+  lappend bytes 8
+  lappend bytes 0
+
+  # Byte 3: action
+  for { set i 0 } { $i < 9 } { incr i } {
+
+    lappend bytes 0
+
+  }
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 3 \
+      && [ lindex $response 0 ] == 8 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == 0 } {
+
+    log "INFO:\tCountdown successfully reset"
+    return 0
+
+  } else {
+
+    log "ERROR:\tResetting countdown failed"
     return -1
 
   }
@@ -1561,6 +1891,46 @@ proc do_command { command } {
       req_led [ expr [ lindex $command 1 ] == "on" ? 1 : 0 ]
 
     }
+    ^countdown.*$ {
+
+      # query countdown state
+      if { [ llength $command ] == 1 } {
+
+        init $INIT(auth)
+        req_countdown
+
+      # reset countdown
+      } elseif { [ llength $command ] == 2 && [ lindex $command 1 ] == "reset" } {
+
+        init $INIT(auth)
+        reset_countdown
+
+      # set new countdown
+      } else {
+
+        check_command $command 2 "countdown" {^countdown (on|off) ([0-2][0-9]:[0-5][0-9]|\+[0-9]+)$}
+
+        if { [string range [ lindex $command 2 ] 0 0 ] == "+" } {
+          # countdown given in minutes
+          set runtime [ calc_time "00:00" [ lindex $command 2 ] ]
+
+        } else {
+
+          # countdown given in ETA
+          set now [ time_in_minutes [ current_time_str ] ]
+          set target [ time_in_minutes [ lindex $command 2 ] ]
+          set runtime [ calc_time "00:00:00" [ expr (1440 + $target - $now) % 1440 ] ]
+
+        }
+
+        set action [ expr [ lindex $command 1 ] == "on" ? 1 : 0 ]
+
+        init $INIT(auth)
+        set_countdown $action $runtime
+
+      }
+
+    }    
     ^overload.*$ {
 
       check_command $command 1 "overload" {^overload [1-3]?[0-9]{1,3}$}
