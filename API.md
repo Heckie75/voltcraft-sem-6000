@@ -305,6 +305,12 @@ Notification handle = 0x2e value: 0f 04 08 00 00 09 ff ff
 No schedulers set
 ```
 char-write-req 2b 0f06140000000015ffff
+                  | | |   |     | + static end sequence of message, 0xffff
+                  | | |   |     + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   + Page if more than 4 schedulers, 0 = 1st page , 1 = 2nd page
+                  | | + Set timer command, 0x1400
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
 
 No schedulers:
 Notification handle = 0x2e value: 0f 04 14 00 00 15 ff ff
@@ -363,7 +369,23 @@ Notification handle = 0x2e value: 7f 13 07 0d 0e 0f 00 00 e4 0c 00 01 00 13 08 0
 Notification handle = 0x2e value: 5b 4c ff ff
 ``` 
 
+Request 2nd page
+```
+char-write-req 2b 0f06140001000016ffff
+                          + Page if more than 4 schedulers, 0 = 1st page , 1 = 2nd page
+
+Notification handle = 0x2e value: 0f 10 14 00 05 0b 01 00 01 13 07 0e 01 01 00 00 40 91 ff ff
+```
+
 ## Set scheduler
+```
+char-write-req 2b 0f0f1300010001010113070e0e1a000068ffff
+                  | | |   + 
+                  | | + Set timer command, 0x1300
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
+
+```
 15
 15
 19

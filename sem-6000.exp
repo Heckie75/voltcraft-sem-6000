@@ -61,26 +61,22 @@ set HELP(status) "\
   --status                           - get status incl. voltage, ampere, watts, power factor and frequency"
 
 set HELP(scheduler) "\
-  --scheduler <n> <on|off> <hh:mm|+mm> <on|off> <hh:mm|+mm> \[<smtwtfs>\]\n\
-\                                     n         - given scheduler where n is 1 - 6\n\
-\                                     on|off    - action of scheduler at start\n\
+  --scheduler <on|off> <hh:mm|+mm> \[<smtwtfs>\] \[<YYYY-MM-DD>]\n\
+\                                     on|off    - action of new scheduler\n\
 \                                     hh:mm|+mm - start time or minutes from now\n\
-\                                     on|off    - action of scheduler at end\n\
-\                                     hh:mm|+mm - end time or minutes after start time, at least 1 minute \n\
 \                                     smtwtfs   - (optional) weekdays, use capital letters to set, e.g. sMTWTFs\n\
 \                                                 use the word \"sameday\" for same weekdays like today\n\
-\                                                 if weekdays are missing then scheduler runs only once
+\                                                 if weekdays are missing then scheduler runs only once\n\
+\                                     YYYY-MM-DD - (optional) Date from when it should run\n\
 \n\
   --scheduler <n> <set|unset|reset>  - activate, deactivate or reset given scheduler\n\
 \n\
-  --scheduler <n>                    - query status of given scheduler where n is 1 - 6\n\
+  --scheduler reset                  - resets all schedulers, i.e. 1 - 12\n\
 \n\
-  --scheduler reset                  - resets all schedulers, i.e. 1 - 6\n\
-\n\
-  --scheduler                        - query status of all schedulers, i.e. 1 - 6"
+  --scheduler                        - query status of all schedulers"
 
 set HELP(countdown) "\
-  --countdown <on|off> <YYYY-MM-DD hh:mm|hh:mm|+mm>\n\
+  --countdown <on|off> <YYYY-MM-DD hh:mm:ss|hh:mm|+mm>\n\
 \                                   - set countdown action and runtime\n\
 \                                     on|off - action of countdown\n\
 \                                     YYYY-MM-DD hh:mm:ss - given ETA\n\
@@ -150,6 +146,10 @@ set INIT(scheduler)            128
 
 set HANDLE(req)                43
 set HANDLE(notification)       46
+
+set CMD(SCHEDULER_ADD)         0
+set CMD(SCHEDULER_EDIT)        1
+set CMD(SCHEDULER_DEL)         2
 
 array set aliases              {}
 
@@ -434,7 +434,11 @@ proc print_schedulers {} {
 
   set out ""
 
-  append out "\tProgrammed schedulers: $sem(schedulers)\n\n"
+  if {$sem(schedulers) >= 0 } {
+
+    append out "\tSchedulers:          $sem(schedulers)\n\n"
+
+  }
 
   for { set i 0 } { $i < $sem(schedulers) } { incr i } {
 
@@ -663,22 +667,22 @@ proc time_offset {} {
 
 
 
-proc calc_time { base time } {
+proc calc_time { base time offset } {
 
   if { [ string first ":" $time ] == -1 } {
 
-    set s [ expr [ time_in_secs $base ] + $time ]
-    return [ clock format $s -format %H:%M:%S -timezone :GMT ]
+    set s [ expr [ time_in_secs $base ] + $time * 60 ]
+    return [ clock format $s -format %H:%M -timezone :GMT ]
 
   }
 
   set part [ split $time ":" ]
   scan [ lindex $part 0 ] %d hours
   scan [ lindex $part 1 ] %d minutes
-  scan [ lindex $part 2 ] %d seconds
-  set s [ expr $hours % 24 * 3600 + $minutes % 60 * 60 + $seconds % 60 ]
 
-  return [ clock format $s -format %H:%M:%S ]
+  set s [ expr $hours % 24 * 3600 + $minutes % 60 * 60 + $offset ]
+
+  return [ clock format $s -format %H:%M ]
 
 }
 
@@ -941,7 +945,7 @@ proc command_req { bytes } {
   set sum 1
   foreach b $bytes {
     lappend full_req $b
-    set sum [ expr $sum + $b ]
+    set sum [ expr $sum + [ scan $b %d ] ]
   }
   set sum [ expr $sum & 255 ]
   lappend full_req $sum
@@ -1055,7 +1059,7 @@ proc init { level } {
   if { ( $level & $INIT(scheduler) ) == $INIT(scheduler) && ( $sem(init) & $INIT(scheduler) ) != $INIT(scheduler) } {
 
     # request schedulers
-    req_scheduler
+    req_schedulers
     set sem(init) [ expr $sem(init) | $INIT(scheduler) ]
 
   }
@@ -1776,20 +1780,170 @@ proc reset_countdown {} {
 
 
 
-proc req_scheduler { } {
+proc req_schedulers { } {
 
+  global sem
+
+  log "INFO:\tRequest schedulers"
+
+  set pages 1
+  for { set page 0 } { $page < $pages } { incr page } {
+
+    set bytes {} 
+    
+    # Request scheduler command, 0x140000
+    lappend bytes 20
+    lappend bytes 0
+
+    # Page
+    lappend bytes $page
+    
+    # Static 0x0000
+    lappend bytes 0
+    lappend bytes 0
+
+    set response [ command_req $bytes ]
+
+    if { [ expr ( [ llength $response ] - 3 ) % 12 ] == 0 \
+        && [ lindex $response 0 ] == 20 \
+        && [ lindex $response 1 ] == 0 } {
+
+      set sem(schedulers) [ lindex $response 2 ]
+      set pages [ expr $sem(schedulers) / 4 + 1 ]
+      parse_schedulers $page $response
+      log "INFO:\tSchedulers successfully requested"
+
+    } else {
+
+      log "ERROR:\tRequesting schedulers failed"
+      return -1
+
+    }
+
+  }
+
+  log [ print_schedulers ]
+
+  return 0
+
+}
+
+
+
+
+proc parse_schedulers { page b } {
+
+  global sem
+
+  set records [ expr ( [ llength $b ] - 3 ) / 12 ]
+  for { set i 0 } { $i < $records } { incr i } {
+
+    set o [ expr 3 + 12 * $i ]
+    set id [ expr 4 * $page + $i ]
+
+    set sem("scheduler_slot_$id")    [ lindex $b [ expr $o + 0 ] ]
+    set sem("scheduler_active_$id")  [ lindex $b [ expr $o + 1 ] ]
+    set sem("scheduler_action_$id")  [ lindex $b [ expr $o + 2 ] ]
+    set sem("scheduler_daymask_$id") [ build_week_mask [ lindex $b [ expr $o + 3 ] ] ]
+    set sem("scheduler_date_$id")    "20[ with_leading_zeros [ lindex $b [ expr $o + 4 ] ] 2 ]"
+    append sem("scheduler_date_$id") "-[ with_leading_zeros [ lindex $b [ expr $o + 5 ] ] 2 ]"
+    append sem("scheduler_date_$id") "-[ with_leading_zeros [ lindex $b [ expr $o + 6 ] ] 2 ]"
+    set sem("scheduler_time_$id")    "[ with_leading_zeros [ lindex $b [ expr $o + 7 ] ] 2 ]"
+    append sem("scheduler_time_$id") ":[ with_leading_zeros [ lindex $b [ expr $o + 8 ] ] 2 ]"
+
+  }
+
+}
+
+
+
+
+proc set_scheduler { cmd slot active action daymask date time } {
+
+  global CMD
+  
   global sem
 
   set bytes {}
 
-  log "INFO:\tRequest scheduler"
+  if { $cmd == $CMD(SCHEDULER_DEL) } {
 
-  # Request scheduler command, 0x140000
-  lappend bytes 20
+    log "INFO:\tDelete scheduler"
+
+  } elseif { $cmd == $CMD(SCHEDULER_EDIT) } {
+
+    log "INFO:\tEdit scheduler"
+
+  } elseif { $cmd == $CMD(SCHEDULER_ADD) } {
+
+    log "INFO:\tAdd scheduler"
+
+  } else {
+
+    log "ERROR:\tUnknown scheduler command"
+    return -1
+
+  }
+
+  # Scheduler command, 0x1300
+  lappend bytes 19
   lappend bytes 0
-  lappend bytes 0
+
+  # Scheduler command, 0 = add, 1 = edit, 2 = delete
+  lappend bytes $cmd
   
-  # Static 0x0000
+  # slot
+  lappend bytes [ expr $cmd == $CMD(SCHEDULER_ADD) ? 0 : $slot ]
+
+  # active / inactive
+  lappend bytes [ expr $cmd != $CMD(SCHEDULER_DEL) && $active == 1 ? 1 : 0 ]
+
+  # action
+  lappend bytes [ expr $cmd != $CMD(SCHEDULER_DEL) && $action == 1 ? 1 : 0 ]
+
+  # daymask
+  lappend bytes [ expr $cmd != $CMD(SCHEDULER_DEL) ? [ byte_for_week_mask $daymask ] : 0 ]
+
+  # year, month, dey of month
+  set dl [ split $date "-" ]
+
+  if { $cmd == $CMD(SCHEDULER_DEL) } {
+
+    lappend bytes 0
+    lappend bytes 0
+    lappend bytes 0
+
+  } elseif { [ llength $dl ] != 3 } {
+
+    set dl [ datetime [ clock seconds ] ]
+    lappend bytes [ expr [ lindex $dl 0 ] % 2000 ]
+    lappend bytes [ lindex $dl 1 ]
+    lappend bytes [ lindex $dl 2 ]
+
+
+  } else {
+
+    lappend bytes [ expr [ lindex $dl 0 ] % 2000 ]
+    lappend bytes [ lindex $dl 1 ]
+    lappend bytes [ lindex $dl 2 ]
+
+  } 
+
+  # hour, minute
+  set hm [ split $time ":" ]
+
+  if { [ llength $hm ] == 2 && $cmd != $CMD(SCHEDULER_DEL) } {
+
+    lappend bytes [ lindex $hm 0 ]
+    lappend bytes [ lindex $hm 1 ]
+
+  } else {
+
+    lappend bytes 0
+    lappend bytes 0
+
+  }
+
   lappend bytes 0
   lappend bytes 0
 
@@ -1799,46 +1953,16 @@ proc req_scheduler { } {
       && [ lindex $response 0 ] == 20 \
       && [ lindex $response 1 ] == 0 } {
 
-    log "INFO:\tScheduler successfully requested"
-    parse_schedulers $response
+    log "INFO:\tScheduler successfully changed"
+    req_schedulers
     return 0
 
   } else {
 
-    log "ERROR:\tRequesting scheduler failed"
+    log "ERROR:\tChanging scheduler failed"
     return -1
 
   }
-
-}
-
-
-
-
-proc parse_schedulers { b } {
-
-  global sem
-
-  set sem(schedulers) [ lindex $b 2 ]
-
-
-  for { set i 0 } { $i < $sem(schedulers) } { incr i } {
-
-    set o [ expr 3 + 12 * $i ]
-
-    set sem("scheduler_slot_$i")    [ lindex $b [ expr $o + 0 ] ]
-    set sem("scheduler_active_$i")  [ lindex $b [ expr $o + 1 ] ]
-    set sem("scheduler_action_$i")  [ lindex $b [ expr $o + 2 ] ]
-    set sem("scheduler_daymask_$i") [ build_week_mask [ lindex $b [ expr $o + 3 ] ] ]
-    set sem("scheduler_date_$i")    "20[ with_leading_zeros [ lindex $b [ expr $o + 4 ] ] 2 ]"
-    append sem("scheduler_date_$i") "-[ with_leading_zeros [ lindex $b [ expr $o + 5 ] ] 2 ]"
-    append sem("scheduler_date_$i") "-[ with_leading_zeros [ lindex $b [ expr $o + 6 ] ] 2 ]"
-    set sem("scheduler_time_$i")    "[ with_leading_zeros [ lindex $b [ expr $o + 7 ] ] 2 ]"
-    append sem("scheduler_time_$i") ":[ with_leading_zeros [ lindex $b [ expr $o + 8 ] ] 2 ]"
-    append sem("scheduler_time_$i") ":00"
-  }
-
-  log [ print_schedulers ]
 
 }
 
@@ -1995,6 +2119,7 @@ proc do_command { command } {
   global INIT
   global sem
   global verbose
+  global CMD
   global data_per_hour
   global data_per_minute
 
@@ -2076,17 +2201,95 @@ proc do_command { command } {
     ^scheduler$ {
 
       init $INIT(auth)
-      req_scheduler
+      req_schedulers
 
     }
     ^scheduler\ reset$ {
 
-      init $INIT(auth)
-      for { set n 0 } { $n < 6 } { incr n } {
-        set_scheduler $n 0 "00:00" 0 "00:00" 0 "_______"
+      init [ expr $INIT(auth) | $INIT(scheduler) ]
+
+      for { set i 0 } { $i < $sem(schedulers) } { incr i } {
+
+        set_scheduler $CMD(SCHEDULER_DEL) $sem("scheduler_slot_$i") 0 0 "" "" ""
+
       }
 
-    }    
+    }
+    ^scheduler\ (on|off).*$ {
+
+      if { [ llength $command ] == 3 } {
+        
+        append command " [ clock format [ clock seconds ] -format %Y-%m-%d ]"
+
+      } elseif { [ lindex $command 3 ] == "sameday" } {
+        
+        set command [ lreplace $command 3 3 ]
+        append command " [ sameday_week_mask ]"
+      
+      }
+
+      check_command $command 3 "scheduler" {^scheduler (on|off) ([0-2][0-9]:[0-5][0-9]|\+[0-9]+) ([Ss_][Mm_][Tt_][Ww_][Tt_][Ff_][Ss_]|20[0-9]{2}-[01][0-9]-[0-3][0-9])$}
+
+      init $INIT(auth)
+
+      set action [ expr [ lindex $command 1 ] == "on" ? 1 : 0 ]
+      set time [ calc_time [ current_time_str ] [ lindex $command 2 ] [ time_offset ] ]
+
+      if { [ string range [ lindex $command 3 ] 0 1 ] == "20" } {
+
+        set daymask ""
+        set date [ lindex $command 3 ]
+
+      } else {
+
+        set daymask [ lindex $command 3 ]
+        set date ""
+
+      }
+
+      set_scheduler $CMD(SCHEDULER_ADD) 0 1 $action $daymask $date $time
+
+    }
+    ^scheduler\ [0-9]{1,2}.*$ {
+
+      check_command $command 2 "scheduler" {^scheduler ([1-9]|1[0-2]) (set|unset|reset)$}
+      
+      init $INIT(auth)
+
+      # request current state
+      req_schedulers
+
+      # index of scheduler
+      set n [ expr [ lindex $command 1 ] - 1 ]
+      if { $n >= $sem(schedulers) } {
+
+        log "ERROR:\tSlot is out of range"
+        return
+
+      }
+
+      set slot    $sem("scheduler_slot_$n")
+      set active  $sem("scheduler_active_$n")
+      set action  $sem("scheduler_action_$n")
+      set daymask $sem("scheduler_daymask_$n")
+      set date    $sem("scheduler_date_$n")
+      set time    $sem("scheduler_time_$n")
+
+      if { [ lindex $command 2 ] == "set" } {
+
+        set_scheduler $CMD(SCHEDULER_EDIT) $slot 1 $action $daymask $date $time
+
+      } elseif { [ lindex $command 2 ] == "unset" } {
+
+        set_scheduler $CMD(SCHEDULER_EDIT) $slot 0 $action $daymask $date $time
+
+      } elseif { [ lindex $command 2 ] == "reset" } {
+
+        set_scheduler $CMD(SCHEDULER_DEL) $slot 0 0 "" "" ""
+
+      }
+
+    }
     ^countdown.*$ {
 
       # query countdown state
@@ -2106,7 +2309,7 @@ proc do_command { command } {
 
         if { [ llength $command ] == 4 } {
 
-          check_command $command 3 "countdown" {^countdown (on|off) [0-9]{4}-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9]$}
+          check_command $command 3 "countdown" {^countdown (on|off) 20[0-9]{2}-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9]$}
 
           set target [ expr [ clock scan "[ lindex $command 2 ] [ lindex $command 3 ]" -format "%Y-%m-%d %H:%M:%S" ] ]
           set schedule [ datetime $target ]
@@ -2124,7 +2327,7 @@ proc do_command { command } {
 
           set now [ time_in_secs [ current_time_str ] ]
           set target [ time_in_secs [ lindex $command 2 ] ]
-          set runtime [ calc_time "00:00:00" [ expr (86400 + $target - $now) % 86400 ] ]
+          set runtime [ clock format [ expr (86400 + $target - $now) % 86400 ] -format %H:%M:%S -timezone :GMT ]
           set schedule [ datetime [ expr [ clock seconds ] + [ time_in_secs $runtime ] ] ]
 
         }
