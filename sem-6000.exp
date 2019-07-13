@@ -61,9 +61,11 @@ set HELP(status) "\
   --status                           - get status incl. voltage, ampere, watts, power factor and frequency"
 
 set HELP(countdown) "\
-  --countdown <on|off> <hh:mm|+mm>   - set countdown action and runtime\n\
+  --countdown <on|off> <YYYY-MM-DD hh:mm|hh:mm|+mm>\n\
+\                                   - set countdown action and runtime\n\
 \                                     on|off - action of countdown\n\
-\                                     hh:mm  - given ETA\n\
+\                                     YYYY-MM-DD hh:mm:ss - given ETA\n\
+\                                     hh:mm  - given ETA within next 24h\n\
 \                                     +mm    - given runtime in minutes\n\
 \n\
   --countdown <reset>                - reset countdown\n\
@@ -191,6 +193,7 @@ proc help { argv } {
     puts stderr "$HELP(toggle)"
     puts stderr "\nScheduler commands:\n"
     puts stderr "\nCountdown commands:\n"
+    puts stderr "$HELP(countdown)"
     puts stderr "\nPower commands:\n"
     puts stderr "$HELP(led)"
     puts stderr "$HELP(overload)\n"
@@ -377,13 +380,26 @@ proc print_countdown {} {
   set out ""
 
   if { $sem(countdown) > 0 } {
+
+    set runtime [ clock format [ expr $sem(countdown_schedule) - $sem(countdown_origin) ] -format "%H:%M:%S" -timezone :GMT ]
+    set runtime "[ expr ( $sem(countdown_schedule) - $sem(countdown_origin) ) / 86400 ] days, $runtime"
+
+    set remain [ clock format [ expr $sem(countdown_schedule) - [ clock seconds ] + [ time_offset ] ] -format "%H:%M:%S" -timezone :GMT ]
+    set remain "[ expr ( $sem(countdown_schedule) - [ clock seconds ] + [ time_offset ] ) / 86400 ] days, $remain"
+    
     append out "\tCountdown:           on\n"
     append out "\t  Action:            [ expr $sem(countdown) == 1 ? "on" : "off" ]\n"
     append out "\t  Started at:        [ datetime_str $sem(countdown_origin) ]\n"
     append out "\t  ETA:               [ datetime_str $sem(countdown_schedule) ]\n"
+    append out "\t  Runtime:           $runtime\n"
+    append out "\t  Remaining:         $remain\n"
+    
     append out "\n"
+
   } else {
+
      append out "\tCountdown:           off\n"
+
   }
 
   return $out
@@ -519,7 +535,7 @@ proc datetime { secs } {
 
 proc current_time_str {} {
 
-  return [ clock format [ clock seconds ] -format "%H:%M" ]
+  return [ clock format [ clock seconds ] -format "%H:%M:%S" ]
 
 }
 
@@ -528,7 +544,7 @@ proc current_time_str {} {
 
 proc current_datetime_str {} {
 
-  return [ clock format [ clock seconds ] -format "%Y-%m-%d %H:%M:%S" -gmt true ]
+  return [ clock format [ expr [ clock seconds ] - [ time_offset ] ] -format "%Y-%m-%d %H:%M:%S" ]
 
 }
 
@@ -538,17 +554,7 @@ proc current_datetime_str {} {
 proc datetime_str { secs } {
 
   set secs [ expr $secs - [ time_offset ] ]
-  return [ clock format $secs -format "%Y-%m-%d %H:%M:%S" -gmt true ]
-
-}
-
-
-
-
-proc time_str { secs } {
-
-  set secs [ expr $secs - [ time_offset ] ]
-  return [ clock format $secs -format "%H:%M:%S" -gmt true ]
+  return [ clock format $secs -format "%Y-%m-%d %H:%M:%S" -timezone :GMT ]
 
 }
 
@@ -557,7 +563,7 @@ proc time_str { secs } {
 
 proc minutes_to_time { m } {
 
-  set time [clock format [expr 60 * $m] -format %H:%M -gmt true ]
+  set time [clock format [expr 60 * $m] -format %H:%M ]
   return $time
 
 }
@@ -586,7 +592,7 @@ proc time_in_secs { time } {
   scan [ lindex $part 1 ] %d minutes
 
   set seconds 0
-  if { [llength $part ] == 2 } {
+  if { [llength $part ] == 3 } {
 
     scan [ lindex $part 2 ] %d seconds
 
@@ -603,16 +609,7 @@ proc time_in_secs { time } {
 
 proc time_offset {} {
 
-  return [ clock scan "1970-01-01 00:00:00" -format "%Y-%m-%d %H:%M:%S" -gmt true ]
-
-}
-
-
-
-
-proc datetime_in_secs { s } {
-
-  return [ expr [ clock scan $s -format "%Y-%m-%d %H:%M:%S" -gmt true ] - [ time_offset ] ]
+  return [ clock scan "1970-01-01 00:00:00" -format "%Y-%m-%d %H:%M:%S" ]
 
 }
 
@@ -622,16 +619,19 @@ proc datetime_in_secs { s } {
 proc calc_time { base time } {
 
   if { [ string first ":" $time ] == -1 } {
-    set s [ expr ( [ time_in_minutes $base ] + $time ) * 60 ]
-    return [ clock format $s -format %H:%M -gmt true ]
+
+    set s [ expr [ time_in_secs $base ] + $time ]
+    return [ clock format $s -format %H:%M:%S -timezone :GMT ]
+    
   }
 
   set part [ split $time ":" ]
   scan [ lindex $part 0 ] %d hours
   scan [ lindex $part 1 ] %d minutes
-  set s [ expr $hours % 3600 * 3600 + $minutes % 60 * 60 ]
+  scan [ lindex $part 2 ] %d seconds
+  set s [ expr $hours % 24 * 3600 + $minutes % 60 * 60 + $seconds % 60 ]
 
-  return [ clock format $s -format %H:%M -gmt true ]
+  return [ clock format $s -format %H:%M:%S ]
 
 }
 
@@ -1550,8 +1550,9 @@ proc parse_countdown_state { b } {
 
   set origin_runtime_sec      [ expr ( [ lindex $b 9 ] << 16 ) | ( [ lindex $b 10 ] << 8 ) | [ lindex $b 11 ] ]
   set sem(countdown)          [ lindex $b 2 ]
-  set sem(countdown_schedule) [ datetime_in_secs $dt_str ]
-  set sem(countdown_origin)   [ expr [ datetime_in_secs $dt_str ] - $origin_runtime_sec ]
+
+  set sem(countdown_schedule) [ expr [ clock scan $dt_str -format "%Y-%m-%d %H:%M:%S" ] - [ time_offset ] ]
+  set sem(countdown_origin)   [ expr $sem(countdown_schedule) - $origin_runtime_sec ]
 
   log [ print_countdown ]
 
@@ -1560,14 +1561,11 @@ proc parse_countdown_state { b } {
 
 
 
-proc set_countdown { action runtime } {
+proc set_countdown { action datetime } {
 
   global sem
 
   set bytes {}
-
-  set target [ expr [ datetime_in_secs [ current_datetime_str ] ] + [ time_in_secs $runtime ] ]
-  set datetime [ datetime $target ]
 
   log "INFO:\tset countdown"
 
@@ -1908,25 +1906,36 @@ proc do_command { command } {
       # set new countdown
       } else {
 
-        check_command $command 2 "countdown" {^countdown (on|off) ([0-2][0-9]:[0-5][0-9]|\+[0-9]+)$}
+        if { [ llength $command ] == 4 } {
 
-        if { [string range [ lindex $command 2 ] 0 0 ] == "+" } {
+          check_command $command 3 "countdown" {^countdown (on|off) [0-9]{4}-[01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9]:[0-5][0-9]$}
+
+          set target [ expr [ clock scan "[ lindex $command 2 ] [ lindex $command 3 ]" -format "%Y-%m-%d %H:%M:%S" ] ]
+          set schedule [ datetime $target ]
+
+        } elseif { [string range [ lindex $command 2 ] 0 0 ] == "+" } {
+
           # countdown given in minutes
-          set runtime [ calc_time "00:00" [ lindex $command 2 ] ]
+          check_command $command 2 "countdown" {^countdown (on|off) \+[0-9]+$}
+          set schedule [ datetime [ expr [ clock seconds ] + [ lindex $command 2 ] * 60 ] ]
 
         } else {
 
-          # countdown given in ETA
-          set now [ time_in_minutes [ current_time_str ] ]
-          set target [ time_in_minutes [ lindex $command 2 ] ]
-          set runtime [ calc_time "00:00:00" [ expr (1440 + $target - $now) % 1440 ] ]
+          # schedule given within next 24 hours
+          check_command $command 2 "countdown" {^countdown (on|off) [0-2][0-9]:[0-5][0-9]$}
+
+          set now [ time_in_secs [ current_time_str ] ]
+          set target [ time_in_secs [ lindex $command 2 ] ]
+          set runtime [ calc_time "00:00:00" [ expr (86400 + $target - $now) % 86400 ] ]
+          set schedule [ datetime [ expr [ clock seconds ] + [ time_in_secs $runtime ] ] ]
 
         }
 
         set action [ expr [ lindex $command 1 ] == "on" ? 1 : 0 ]
 
         init $INIT(auth)
-        set_countdown $action $runtime
+        
+        set_countdown $action $schedule
 
       }
 

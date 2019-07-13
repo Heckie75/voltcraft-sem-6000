@@ -252,22 +252,19 @@ Notification handle = 0x2b value: 0f 0e 09 00 01 10 04 10 08 07 13 01 51 45 00 e
 ## Set timer
 ```
 char-write-req 2b 0f0c0800012d1c1607071300008affff
-
-15
-11
-8
-0
-0 - 1 = on, 2 = off
-0 - target second
-0 - target minute
-0 - target hour
-0 - target day of month
-0 - target month
-0 - target year, 2 digits
-0
-0
-255
-255
+                  | | |   | | | | | | | |   | + static end sequence of message, 0xffff
+                  | | |   | | | | | | | |   + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   | | | | | | | + Static 0x0000
+                  | | |   | | | | | | + Schedule year
+                  | | |   | | | | | + Schedule month
+                  | | |   | | | | + Schedule day of month
+                  | | |   | | | + Schedule hour
+                  | | |   | | + Schedule minutes
+                  | | |   | + Schedule seconds
+                  | | |   + Timer action, 1 = on, 2 = off 
+                  | | + Set timer command, 0x0800
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
 
 Notification handle = 0x2b value: 0f 04 08 00 00 09 ff ff
 ```
