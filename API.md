@@ -207,7 +207,6 @@ Notification handle = 0x2b value: 0f 05 0f 00 01 00 11 ff ff
                                   + static start sequence for message, 0x0f
 ```
 
-
 # Switch on / off
 ```
 char-write-req 0x2b 0f06030000000004ffff
@@ -228,8 +227,9 @@ Notification handle = 0x002e value: 0f 04 03 00 00 04 ff ff
                                     |  + Length of payload starting w/ next byte incl. checksum
                                     + static start sequence for message, 0x0f
 ```
+
 # Timer
-## Get status
+## Get timer status
 ```
 char-write-req 2b 0f05090000000affff
 
@@ -261,33 +261,107 @@ char-write-req 2b 0f0c0800012d1c1607071300008affff
                   | | |   | | | + Schedule hour
                   | | |   | | + Schedule minutes
                   | | |   | + Schedule seconds
-                  | | |   + Timer action, 1 = on, 2 = off 
+                  | | |   + Timer action, 1 = on, 2 = off
                   | | + Set timer command, 0x0800
                   | + Length of payload starting w/ next byte incl. checksum
                   + static start sequence for message, 0x0f
 
 Notification handle = 0x2b value: 0f 04 08 00 00 09 ff ff
+                                  |  |  |        |  + static end sequence of message, 0xffff
+                                  |  |  |        + checksum byte starting with length-byte, ending w/ byte before
+                                  |  |  + Request timer status command, 0x080000
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
 ```
 
 ## Stop timer
 ```
 char-write-req 2b 0f0c080000000000000000000009ffff
+                  | | |   | | | | | | | |   | + static end sequence of message, 0xffff
+                  | | |   | | | | | | | |   + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   | | | | | | | + Static 0x0000
+                  | | |   | | | | | | + Schedule year, 0 for reset
+                  | | |   | | | | | + Schedule month, 0 for reset
+                  | | |   | | | | + Schedule day of month, 0 for reset
+                  | | |   | | | + Schedule hour, 0 for reset
+                  | | |   | | + Schedule minutes, 0 for reset
+                  | | |   | + Schedule seconds, 0 for reset
+                  | | |   + Timer action, 0 = reset
+                  | | + Set timer command, 0x0800
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
 
-Notification handle = 0x002e value: 0f 04 08 00 00 09 ff ff
+Notification handle = 0x2e value: 0f 04 08 00 00 09 ff ff
+                                  |  |  |        |  + static end sequence of message, 0xffff
+                                  |  |  |        + checksum byte starting with length-byte, ending w/ byte before
+                                  |  |  + Request timer status command, 0x080000
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
 ```
 
 # Scheduler
 ## Request scheduler
-15
-6
-20
-0
-0 - slot
-0
-0
-9
-255
-255
+
+No schedulers set
+```
+char-write-req 2b 0f06140000000015ffff
+
+No schedulers:
+Notification handle = 0x2e value: 0f 04 14 00 00 15 ff ff
+                                  |  |  |     + Number of active schedulers, here no slots set
+                                  |  |  + Request schedulers command, 0x1400
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
+```
+
+If only 1 scheduler is set then there is a single notification.
+```
+Notification handle = 0x2e value: 0f 10 14 00 01 0c 01 01 00 13 08 09 0a 0b 00 00 4f ac ff ff
+                                  |  |  |     |  |  |  |  |  |  |  |  |  |  |     + some kind of checksum for specific scheduler
+                                  |  |  |     |  |  |  |  |  |  |  |  |  |  + static, 0x0000
+                                  |  |  |     |  |  |  |  |  |  |  |  |  + Minute
+                                  |  |  |     |  |  |  |  |  |  |  |  + Hour
+                                  |  |  |     |  |  |  |  |  |  |  + day in month
+                                  |  |  |     |  |  |  |  |  |  + Month
+                                  |  |  |     |  |  |  |  |  + Year (2 digts)
+                                  |  |  |     |  |  |  |  + Weekday mask, 0 if once
+                                  |  |  |     |  |  |  + Action, 1 = turn on, 0 = turn off
+                                  |  |  |     |  |  + Active, 0 = inactive, 1 = active
+                                  |  |  |     |  + Slot ID
+                                  |  |  |     + Number of active schedulers, here 1 
+                                  |  |  + Request scheduler status command, 0x1400
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
+```
+
+If there are more than 1 schedulers set then there are multiple notifications. 
+```
+# notification #1
+                                                 0  1  2  3  4  5  6  7  8  9  10 11
+                                        0  1  2  3  4  5  6  7  8  9  10 11 12 13 14
+Notification handle = 0x2e value: 0f 28 14 00 03 0a 01 01 01 13 07 0d 0b 2c 00 00 75 0b 01 00
+                                  |  |  |     |  |  |  |  |  |  |  |  |  |  |     + Checksum of scheduler?
+                                  |  |  |     |  |  |  |  |  |  |  |  |  |  + static, 0x0000
+                                  |  |  |     |  |  |  |  |  |  |  |  |  + Minute
+                                  |  |  |     |  |  |  |  |  |  |  |  + Hour
+                                  |  |  |     |  |  |  |  |  |  |  + day in month
+                                  |  |  |     |  |  |  |  |  |  + Month
+                                  |  |  |     |  |  |  |  |  + Year (2 digts)
+                                  |  |  |     |  |  |  |  + Weekday mask, 0 if once, 1 = Sunday, 2 = Monday, 4 = Tuesday, etc.
+                                  |  |  |     |  |  |  + Action, 1 = turn on, 0 = turn off
+                                  |  |  |     |  |  + Active, 0 = inactive, 1 = active
+                                  |  |  |     |  + Slot ID, starting with 10, 0x0a=0, 0x0b=1, 0x0c=2
+                                  |  |  |     + Number of active schedulers, here 3
+                                  |  |  + Request scheduler status command, 0x1400
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
+
+# notification #2
+Notification handle = 0x2e value: 7f 13 07 0d 0e 0f 00 00 e4 0c 00 01 00 13 08 09 0a 0b 00 00
+
+# notification #3
+Notification handle = 0x2e value: 5b 4c ff ff
+``` 
 
 ## Set scheduler
 15
@@ -456,5 +530,5 @@ Notification handle = 0x002e value: 0f 15 11 00 4d 4c 30 31 44 31 30 30 31 32 30
 Notification handle = 0x002e value: 00 00 64 ff ff
 ```
 
-The serial number is ascii coded between bytes 5 and 20. In this example the serial is "ML01D10012000000"
+The serial number is ASCII coded between bytes 5 and 20. In this example the serial is "ML01D10012000000"
 Note that there are two notifications!

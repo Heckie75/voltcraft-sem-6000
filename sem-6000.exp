@@ -60,6 +60,25 @@ set HELP(toggle) "\
 set HELP(status) "\
   --status                           - get status incl. voltage, ampere, watts, power factor and frequency"
 
+set HELP(scheduler) "\
+  --scheduler <n> <on|off> <hh:mm|+mm> <on|off> <hh:mm|+mm> \[<smtwtfs>\]\n\
+\                                     n         - given scheduler where n is 1 - 6\n\
+\                                     on|off    - action of scheduler at start\n\
+\                                     hh:mm|+mm - start time or minutes from now\n\
+\                                     on|off    - action of scheduler at end\n\
+\                                     hh:mm|+mm - end time or minutes after start time, at least 1 minute \n\
+\                                     smtwtfs   - (optional) weekdays, use capital letters to set, e.g. sMTWTFs\n\
+\                                                 use the word \"sameday\" for same weekdays like today\n\
+\                                                 if weekdays are missing then scheduler runs only once
+\n\
+  --scheduler <n> <set|unset|reset>  - activate, deactivate or reset given scheduler\n\
+\n\
+  --scheduler <n>                    - query status of given scheduler where n is 1 - 6\n\
+\n\
+  --scheduler reset                  - resets all schedulers, i.e. 1 - 6\n\
+\n\
+  --scheduler                        - query status of all schedulers, i.e. 1 - 6"
+
 set HELP(countdown) "\
   --countdown <on|off> <YYYY-MM-DD hh:mm|hh:mm|+mm>\n\
 \                                   - set countdown action and runtime\n\
@@ -127,6 +146,7 @@ set INIT(settings)             8
 set INIT(measurement)          16
 set INIT(device)               32
 set INIT(countdown)            64
+set INIT(scheduler)            128
 
 set HANDLE(req)                43
 set HANDLE(notification)       46
@@ -161,6 +181,7 @@ set sem(power_factor)          -1
 set sem(total)                 -1
 
 set sem(countdown)             -1
+set sem(schedulers)            -1
 
 
 
@@ -237,10 +258,8 @@ proc print_sem {} {
 #  append out [ print_uptime ]
 #  append out [ print_consumption ]
 #  append out [ print_avg_consumption ]
-#  for { set i 0 } { $i < 6 } { incr i } {
-#    append out [ print_scheduler $i ]
-#  }
-   append out [ print_countdown ]
+  append out [ print_schedulers ]
+  append out [ print_countdown ]
 #  append out [ print_overload ]
 #  append out [ print_standby ]
 #  append out $sem(header_data)
@@ -314,7 +333,7 @@ proc print_measurement {} {
   append out "\t  Watts:             $sem(watt) W\n"
   append out "\t  Frequency:         $sem(frequency) Hz\n"
   append out "\t  Power factor:      [ power_factor ]\n"
-  append out "\t  Total consumption: $sem(total) kWh\n"  
+  append out "\t  Total consumption: $sem(total) kWh\n"
   append out "\n"
 
   return $out
@@ -386,14 +405,14 @@ proc print_countdown {} {
 
     set remain [ clock format [ expr $sem(countdown_schedule) - [ clock seconds ] + [ time_offset ] ] -format "%H:%M:%S" -timezone :GMT ]
     set remain "[ expr ( $sem(countdown_schedule) - [ clock seconds ] + [ time_offset ] ) / 86400 ] days, $remain"
-    
-    append out "\tCountdown:           on\n"
-    append out "\t  Action:            [ expr $sem(countdown) == 1 ? "on" : "off" ]\n"
-    append out "\t  Started at:        [ datetime_str $sem(countdown_origin) ]\n"
-    append out "\t  ETA:               [ datetime_str $sem(countdown_schedule) ]\n"
-    append out "\t  Runtime:           $runtime\n"
-    append out "\t  Remaining:         $remain\n"
-    
+
+    append out "\tCountdown:            on\n"
+    append out "\t  Action:             [ expr $sem(countdown) == 1 ? "on" : "off" ]\n"
+    append out "\t  Started at:         [ datetime_str $sem(countdown_origin) ]\n"
+    append out "\t  ETA:                [ datetime_str $sem(countdown_schedule) ]\n"
+    append out "\t  Runtime:            $runtime\n"
+    append out "\t  Remaining:          $remain\n"
+
     append out "\n"
 
   } else {
@@ -401,6 +420,34 @@ proc print_countdown {} {
      append out "\tCountdown:           off\n"
 
   }
+
+  return $out
+
+}
+
+
+
+
+proc print_schedulers {} {
+
+  global sem
+
+  set out ""
+
+  append out "\tProgrammed schedulers: $sem(schedulers)\n\n"
+
+  for { set i 0 } { $i < $sem(schedulers) } { incr i } {
+
+    append out "\tScheduler [ expr $i + 1 ]:\n"
+    append out "\t  Slot:              $sem("scheduler_slot_$i")\n"
+    append out "\t  Active:            [ expr $sem("scheduler_active_$i") == 1 ? "yes" : "no" ]\n"
+    append out "\t  Action:            turn [ expr $sem("scheduler_action_$i") == 1 ? "on" : "off" ]\n"
+    append out "\t  Date:              $sem("scheduler_date_$i")\n"
+    append out "\t  Time:              $sem("scheduler_time_$i")\n"
+    append out "\t  Weekdays:          $sem("scheduler_daymask_$i")\n"
+    append out "\n"
+
+  } 
 
   return $out
 
@@ -596,7 +643,7 @@ proc time_in_secs { time } {
 
     scan [ lindex $part 2 ] %d seconds
 
-  } 
+  }
 
   set s [ expr $hours * 3600 + $minutes * 60 + $seconds ]
 
@@ -622,7 +669,7 @@ proc calc_time { base time } {
 
     set s [ expr [ time_in_secs $base ] + $time ]
     return [ clock format $s -format %H:%M:%S -timezone :GMT ]
-    
+
   }
 
   set part [ split $time ":" ]
@@ -632,6 +679,66 @@ proc calc_time { base time } {
   set s [ expr $hours % 24 * 3600 + $minutes % 60 * 60 + $seconds % 60 ]
 
   return [ clock format $s -format %H:%M:%S ]
+
+}
+
+
+
+
+proc build_week_mask { b } {
+
+  global WEEKDAYS
+
+  set rv ""
+
+  for { set i 0 } { $i < 7 } { incr i } {
+
+    set day [ string range $WEEKDAYS $i $i ]
+    if { [ expr $b & 1 ] == 1 } {
+      append rv $day
+    } else {
+      append rv "_"
+    }
+
+    set b [ expr $b >> 1 ]
+  }
+
+  return $rv
+
+}
+
+
+
+
+proc sameday_week_mask {} {
+
+  global WEEKDAYS
+
+  set rv "_______"
+  set d [ clock format [ clock seconds ] -format "%w" ]
+  set rv [ string replace $rv $d $d [ string range $WEEKDAYS $d $d ] ]
+
+  return $rv
+
+}
+
+
+
+
+proc byte_for_week_mask { week_mask } {
+
+  global WEEKDAYS
+
+  set b 0
+  for { set i 6 } { $i >= 0 } { incr i -1 } {
+    if { [ string range $WEEKDAYS $i $i ] == [ string range $week_mask $i $i ] } {
+      set b [ expr $b | 1 ]
+    }
+    set b [ expr $b << 1 ]
+  }
+  set b [ expr $b >> 1 ]
+
+  return $b
 
 }
 
@@ -942,6 +1049,14 @@ proc init { level } {
     # request countdown state
     req_countdown
     set sem(init) [ expr $sem(init) | $INIT(countdown) ]
+
+  }
+
+  if { ( $level & $INIT(scheduler) ) == $INIT(scheduler) && ( $sem(init) & $INIT(scheduler) ) != $INIT(scheduler) } {
+
+    # request schedulers
+    req_scheduler
+    set sem(init) [ expr $sem(init) | $INIT(scheduler) ]
 
   }
 
@@ -1503,7 +1618,7 @@ proc req_countdown {} {
 
   log "INFO:\tRequest countdown state"
 
-  # Request count state command, 0x09000000
+  # Request timer state command, 0x09000000
   lappend bytes 9
   lappend bytes 0
   lappend bytes 0
@@ -1525,7 +1640,7 @@ proc req_countdown {} {
     return -1
 
   }
-  
+
 }
 
 
@@ -1613,7 +1728,7 @@ proc set_countdown { action datetime } {
     log "ERROR:\tSetting countdown failed"
     return -1
 
-  }  
+  }
 
 }
 
@@ -1655,6 +1770,75 @@ proc reset_countdown {} {
     return -1
 
   }
+
+}
+
+
+
+
+proc req_scheduler { } {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tRequest scheduler"
+
+  # Request scheduler command, 0x140000
+  lappend bytes 20
+  lappend bytes 0
+  lappend bytes 0
+  
+  # Static 0x0000
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ expr ( [ llength $response ] - 3 ) % 12 ] == 0 \
+      && [ lindex $response 0 ] == 20 \
+      && [ lindex $response 1 ] == 0 } {
+
+    log "INFO:\tScheduler successfully requested"
+    parse_schedulers $response
+    return 0
+
+  } else {
+
+    log "ERROR:\tRequesting scheduler failed"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc parse_schedulers { b } {
+
+  global sem
+
+  set sem(schedulers) [ lindex $b 2 ]
+
+
+  for { set i 0 } { $i < $sem(schedulers) } { incr i } {
+
+    set o [ expr 3 + 12 * $i ]
+
+    set sem("scheduler_slot_$i")    [ lindex $b [ expr $o + 0 ] ]
+    set sem("scheduler_active_$i")  [ lindex $b [ expr $o + 1 ] ]
+    set sem("scheduler_action_$i")  [ lindex $b [ expr $o + 2 ] ]
+    set sem("scheduler_daymask_$i") [ build_week_mask [ lindex $b [ expr $o + 3 ] ] ]
+    set sem("scheduler_date_$i")    "20[ with_leading_zeros [ lindex $b [ expr $o + 4 ] ] 2 ]"
+    append sem("scheduler_date_$i") "-[ with_leading_zeros [ lindex $b [ expr $o + 5 ] ] 2 ]"
+    append sem("scheduler_date_$i") "-[ with_leading_zeros [ lindex $b [ expr $o + 6 ] ] 2 ]"
+    set sem("scheduler_time_$i")    "[ with_leading_zeros [ lindex $b [ expr $o + 7 ] ] 2 ]"
+    append sem("scheduler_time_$i") ":[ with_leading_zeros [ lindex $b [ expr $o + 8 ] ] 2 ]"
+    append sem("scheduler_time_$i") ":00"
+  }
+
+  log [ print_schedulers ]
 
 }
 
@@ -1889,6 +2073,20 @@ proc do_command { command } {
       req_led [ expr [ lindex $command 1 ] == "on" ? 1 : 0 ]
 
     }
+    ^scheduler$ {
+
+      init $INIT(auth)
+      req_scheduler
+
+    }
+    ^scheduler\ reset$ {
+
+      init $INIT(auth)
+      for { set n 0 } { $n < 6 } { incr n } {
+        set_scheduler $n 0 "00:00" 0 "00:00" 0 "_______"
+      }
+
+    }    
     ^countdown.*$ {
 
       # query countdown state
@@ -1934,12 +2132,12 @@ proc do_command { command } {
         set action [ expr [ lindex $command 1 ] == "on" ? 1 : 0 ]
 
         init $INIT(auth)
-        
+
         set_countdown $action $schedule
 
       }
 
-    }    
+    }
     ^overload.*$ {
 
       check_command $command 1 "overload" {^overload [1-3]?[0-9]{1,3}$}
