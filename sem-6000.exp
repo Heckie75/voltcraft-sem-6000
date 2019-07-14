@@ -485,7 +485,7 @@ proc print_randommode {} {
 
   } elseif { $sem(randommode) == 0 } {
 
-     append out "\tRandommode:         off\n"
+     append out "\tRandommode:          off\n"
 
   }
 
@@ -2112,8 +2112,8 @@ proc set_randommode { status daymask start end } {
     set sem(randommode_start)   $start
     set sem(randommode_end)     $end
 
+    log [ print_randommode ]
     log "INFO:\tRandommode successfully set"
-    
     return 0
 
   } else {
@@ -2600,7 +2600,7 @@ proc do_command { command } {
     }
     ^dump$ {
 
-      init 255
+      init 65535
       capture_measurement
 
     }
