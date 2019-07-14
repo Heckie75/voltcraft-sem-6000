@@ -87,6 +87,17 @@ set HELP(countdown) "\
 \n\
   --countdown                        - query status of countdown"
 
+set HELP(randommode) "\
+  --randommode <hh:mm> <hh:mm> <smtwtfs>\n\
+\                                  - set randommode\n\
+\                                    hh:mm  - Starting time\n\
+\                                    hh:mm  - Ending time\n\
+\                                    smtwtfs   - weekdays, use capital letters to set, e.g. sMTWTFs\n\
+\n\
+  --randommode off                  - turn randommode off\n\
+\n\
+  --randommode                      - query status of randommode"
+
 set HELP(measure) "\
   --measure \[<s>\]                    - take measurements, optional duration in seconds (use 0 for single), otherwise forever"
 
@@ -143,6 +154,7 @@ set INIT(measurement)          16
 set INIT(device)               32
 set INIT(countdown)            64
 set INIT(scheduler)            128
+set INIT(randommode)           256
 
 set HANDLE(req)                43
 set HANDLE(notification)       46
@@ -182,6 +194,7 @@ set sem(total)                 -1
 
 set sem(countdown)             -1
 set sem(schedulers)            -1
+set sem(randommode)            -1
 
 
 
@@ -255,13 +268,9 @@ proc print_sem {} {
   append out [ print_measurement ]
   append out [ print_settings ]
 
-#  append out [ print_uptime ]
-#  append out [ print_consumption ]
-#  append out [ print_avg_consumption ]
   append out [ print_schedulers ]
   append out [ print_countdown ]
-#  append out [ print_overload ]
-#  append out [ print_standby ]
+  append out [ print_randommode ]
 #  append out $sem(header_data)
 #  append out [ print_data_hours ]
 #  append out [ print_data_minutes ]
@@ -415,7 +424,7 @@ proc print_countdown {} {
 
     append out "\n"
 
-  } else {
+  } elseif { $sem(countdown) == 0 } {
 
      append out "\tCountdown:           off\n"
 
@@ -452,6 +461,33 @@ proc print_schedulers {} {
     append out "\n"
 
   } 
+
+  return $out
+
+}
+
+
+
+
+proc print_randommode {} {
+
+  global sem
+
+  set out ""
+
+  if { $sem(randommode) > 0 } {
+
+    append out "\tRandommode:           on\n"
+    append out "\t  Weekdays:           $sem(randommode_daymask)\n"
+    append out "\t  Start time:         $sem(randommode_start)\n"
+    append out "\t  End time:           $sem(randommode_end)\n"
+    append out "\n"
+
+  } elseif { $sem(randommode) == 0 } {
+
+     append out "\tRandommode:         off\n"
+
+  }
 
   return $out
 
@@ -1061,6 +1097,14 @@ proc init { level } {
     # request schedulers
     req_schedulers
     set sem(init) [ expr $sem(init) | $INIT(scheduler) ]
+
+  }
+
+  if { ( $level & $INIT(randommode) ) == $INIT(randommode) && ( $sem(init) & $INIT(randommode) ) != $INIT(randommode) } {
+
+    # request schedulers
+    req_randommode
+    set sem(init) [ expr $sem(init) | $INIT(randommode) ]
 
   }
 
@@ -1969,6 +2013,121 @@ proc set_scheduler { cmd slot active action daymask date time } {
 
 
 
+proc req_randommode {} {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tRequest randommode"
+
+  # Request randommode command, 0x16000000
+  lappend bytes 22
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 10 \
+      && [ lindex $response 0 ] == 22 \
+      && [ lindex $response 1 ] == 0 } {
+
+    set sem(randommode)          [ lindex $response 2 ]
+    set sem(randommode_daymask)  [ build_week_mask [ lindex $response 3 ] ]
+    set sem(randommode_start)    "[ with_leading_zeros [ lindex $response 4 ] 2 ]"
+    append sem(randommode_start) ":[ with_leading_zeros [ lindex $response 5 ] 2 ]"
+    set sem(randommode_end)      "[ with_leading_zeros [ lindex $response 6 ] 2 ]"
+    append sem(randommode_end)   ":[ with_leading_zeros [ lindex $response 7 ] 2 ]"
+
+    log [ print_randommode ]
+    log "INFO:\tRandommode successfully requested"
+    return 0
+
+  } else {
+
+    log "ERROR:\tRequesting randommode failed"
+    return -1
+
+  }
+
+}
+
+
+
+
+proc set_randommode { status daymask start end } {
+
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tSet randommode"
+
+  # Randommode command, 0x1500
+  lappend bytes 21
+  lappend bytes 0
+
+  
+  if { $status == 1 } {
+
+    # Randommode status
+    lappend bytes 1
+
+    # daymask
+    lappend bytes [ byte_for_week_mask $daymask ]
+
+    # start hour, minute
+    set hm [ split $start ":" ]
+    lappend bytes [ lindex $hm 0 ]
+    lappend bytes [ lindex $hm 1 ]
+
+    # end hour, minute
+    set hm [ split $end ":" ]
+    lappend bytes [ lindex $hm 0 ]
+    lappend bytes [ lindex $hm 1 ]
+
+  } else {
+
+    lappend bytes 0
+    lappend bytes 0
+    lappend bytes 0
+    lappend bytes 0
+    lappend bytes 0
+    lappend bytes 0
+
+  } 
+
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 3 \
+      && [ lindex $response 0 ] == 21 \
+      && [ lindex $response 1 ] == 0 } {
+
+    set sem(randommode)         $status
+    set sem(randommode_daymask) $daymask
+    set sem(randommode_start)   $start
+    set sem(randommode_end)     $end
+
+    log "INFO:\tRandommode successfully set"
+    
+    return 0
+
+  } else {
+
+    log "ERROR:\tSetting randommode failed"
+    return -1
+
+  }
+
+}
+
+
+
+
 proc set_overload { limit } {
 
   global sem
@@ -2341,6 +2500,31 @@ proc do_command { command } {
       }
 
     }
+    ^randommode$ {
+
+      init $INIT(auth)
+      req_randommode
+
+    }
+    ^randommode\ off$ {
+
+      init $INIT(auth)
+      set_randommode 0 "" "" ""
+
+    }
+    ^randommode.*$ {
+
+      check_command $command 3 "randommode" {^randommode [0-2][0-9]:[0-5][0-9] [0-2][0-9]:[0-5][0-9] [Ss_][Mm_][Tt_][Ww_][Tt_][Ff_][Ss_]$}
+
+      init $INIT(auth)
+
+      set start  [ lindex $command 1 ]
+      set end    [ lindex $command 2 ]
+      set mask   [ lindex $command 3 ]
+
+      set_randommode 1 $mask $start $end
+
+    }    
     ^overload.*$ {
 
       check_command $command 1 "overload" {^overload [1-3]?[0-9]{1,3}$}

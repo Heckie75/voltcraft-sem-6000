@@ -380,85 +380,68 @@ Notification handle = 0x2e value: 0f 10 14 00 05 0b 01 00 01 13 07 0e 01 01 00 0
 ## Set scheduler
 ```
 char-write-req 2b 0f0f1300010001010113070e0e1a000068ffff
-                  | | |   + 
+                  | | |   | | | | | | | | | | |   | + Static end sequence of message, 0xffff 
+                  | | |   | | | | | | | | | | |   + Checksum byte starting with length-byte, ending w/ byte before
+                  | | |   | | | | | | | | | | + Static 0x0000
+                  | | |   | | | | | | | | | + Minute
+                  | | |   | | | | | | | | + Hour
+                  | | |   | | | | | | | + Day of month
+                  | | |   | | | | | | + Month, 1 = January
+                  | | |   | | | | | + Year, 2 digits, eg. 19 for 2019
+                  | | |   | | | | + Weekday mask, 7 bits, 1st bit = Sunday, ... 
+                  | | |   | | | + Action, 1 = turn on, 0 = turn off
+                  | | |   | | + State , 1 = active, 0 = inactive
+                  | | |   | + If edit / remote scheduler then ID of slot else 0x00
+                  | | |   + 0 = add new scheduler, 1 = edit existing scheduler, 2 = remove scheduler
                   | | + Set timer command, 0x1300
                   | + Length of payload starting w/ next byte incl. checksum
-                  + static start sequence for message, 0x0f
-
+                  + Static start sequence for message, 0x0f
 ```
-15
-15
-19
-0
-0 -> 1 = edit then give slot
-0 -> slot if edit existing slot else 0
-1
-0 - action, 1 = on, 0 = off
-0 - weekday mask
-0 - year
-0 - month
-0 - day
-0 - hour
-0 - minute
-0
-0
-0
-255
-255
 
 ## Reset scheduler
-15
-16
-19
-0
-2
-0 - slot
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-0
-255
-255
+```
+char-write-req 2b 0f0f1300020c0000000000000000000022ffff
+                          | + ID of slot
+                          + 2 = remove scheduler
+```
 
 # Random mode
-## Get status
+## Get randommode
 
 ```
 char-write-req 0x2b 0f051600000017ffff
 
-Notification handle = 0x002e value: 0f 0b 16 00 00 00 00 00 00 00 00 00 17 ff ff
-
-4: 1 = on, 2 = off
-5: weekday
-6-7: start time
-8-9: end time
+Notification handle = 0x2b value: 0f 0b 16 00 01 55 02 03 04 05 00 00 7b ff ff
+                                  |  |  |     |  |  |  |  |  |        |  + Static end sequence of message, 0xffff 
+                                  |  |  |     |  |  |  |  |  |        + Checksum byte starting with length-byte, ending w/ byte before            
+                                  |  |  |     |  |  |  |  |  + End minute
+                                  |  |  |     |  |  |  |  + End hour
+                                  |  |  |     |  |  |  + Start minute
+                                  |  |  |     |  |  + Start hour
+                                  |  |  |     |  + Weekday mask, bit 1 = Sunday, bit 2 = Monday, etc.
+                                  |  |  |     + Randommode status, 1 = on, 0 = off
+                                  |  |  + Request scheduler status command, 0x1600
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + static start sequence for message, 0x0f
 ```
 
 ## Set random mode
-15
-11
-21
-0
-0 - 1 = on, 0 = off
-0 - weekday mask
-0 - start time
-0 - start time
-0 - end time
-0 - end time
-0
-0
-0
-255
-255
+```
+char-write-req 2b 0f0b1500017f020304050000a4ffff
+                  | | |   | | | | | |     | + Static end sequence of message, 0xffff
+                  | | |   | | | | | |     + Checksum byte starting with length-byte, ending w/ byte before           
+                  | | |   | | | | | + End minute
+                  | | |   | | | | + End hour
+                  | | |   | | | + Start minute
+                  | | |   | | + Start hour
+                  | | |   | + Weekday mask, bit 1 = Sunday, bit 2 = Monday, etc.
+                  | | |   + Randommode status, 1 = on, 0 = off
+                  | | + Set randommode command 0x1500
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
 
+Notification handle = 0x2b value: 0f 04 15 00 00 16 ff ff
+```
 
 # Measure power and consumption
 ## Capture measurement
