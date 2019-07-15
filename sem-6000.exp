@@ -128,6 +128,9 @@ set HELP(pin) "\
 set HELP(device) "\
   --device                           - read device meta information, i.e. name and serial no."
 
+set HELP(reset) "\
+  --reset                            - factory reset"
+
 set HELP(dump) "\
   --dump                             - request all information from device"
 
@@ -162,6 +165,8 @@ set HANDLE(notification)       46
 set CMD(SCHEDULER_ADD)         0
 set CMD(SCHEDULER_EDIT)        1
 set CMD(SCHEDULER_DEL)         2
+set CMD(RESET_ALL)             0
+set CMD(RESET_DATA)            2
 
 array set aliases              {}
 
@@ -247,6 +252,7 @@ proc help { argv } {
     puts stderr "$HELP(sleep)"
     puts stderr "$HELP(verbose)"
     puts stderr "$HELP(debug)"
+    puts stderr "$HELP(reset)"    
     puts stderr "$HELP(help)"
     puts stderr ""
 
@@ -650,7 +656,7 @@ proc datetime_str { secs } {
 
 proc minutes_to_time { m } {
 
-  set time [clock format [expr 60 * $m] -format %H:%M ]
+  set time [clock format [expr 60 * $m] -format %H:%M -timezone :GMT ]
   return $time
 
 }
@@ -1561,6 +1567,51 @@ proc parse_measurement { b } {
   set sem(total)        [ expr ( [ lindex $b 12 ] << 24 | [ lindex $b 13 ] << 16 | [ lindex $b 14 ] << 8  | [ lindex $b 15 ] ) / 1000.0 ]
 
   log [ print_measurement ]
+
+}
+
+
+
+
+proc req_reset { cmd } {
+
+  global CMD
+  global sem
+
+  set bytes {}
+
+  log "INFO:\tReset SEM"
+
+  # Byte 1 - 2: Reset device command, 0x0300
+  lappend bytes 15
+  lappend bytes 0
+
+  # 0 = reset device, 2 = reset data
+  lappend bytes [ expr $CMD(RESET_ALL) == $cmd ? $CMD(RESET_ALL) : $CMD(RESET_DATA) ]
+
+  # Byte 4 - 8: static 0x0000000000
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 4 \
+      && [ lindex $response 0 ] == 15 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == $cmd } {
+
+    log "INFO:\tSEM successfully reset"
+    return 0
+
+  } else {
+
+    log "ERROR:\Resetting SEM failed"
+    return -1
+
+  }
 
 }
 
@@ -2524,25 +2575,11 @@ proc do_command { command } {
 
       set_randommode 1 $mask $start $end
 
-    }    
-    ^overload.*$ {
-
-      check_command $command 1 "overload" {^overload [1-3]?[0-9]{1,3}$}
-
-      set limit [ lindex $command 1 ]
-
-      if { $limit < 1000 } {
-
-        set limit 1000
-
-      } elseif { $limit > 3680 } {
-
-        set limit 3680
-      }
+    }
+    ^data\ reset$ {
 
       init $INIT(auth)
-
-      set_overload $limit
+      req_reset $CMD(RESET_DATA)
 
     }
     ^price.*$ {
@@ -2568,6 +2605,26 @@ proc do_command { command } {
       set_reduced_mode $reduced_mode $reduced_start $reduced_end
 
     }
+    ^overload.*$ {
+
+      check_command $command 1 "overload" {^overload [1-3]?[0-9]{1,3}$}
+
+      set limit [ lindex $command 1 ]
+
+      if { $limit < 1000 } {
+
+        set limit 1000
+
+      } elseif { $limit > 3680 } {
+
+        set limit 3680
+      }
+
+      init $INIT(auth)
+
+      set_overload $limit
+
+    }     
     ^device$ {
 
       init [ expr $INIT(auth) | $INIT(device) ]
@@ -2596,6 +2653,12 @@ proc do_command { command } {
         req_change_pin [ lindex $command 1 ]
 
       }
+
+    }
+    ^reset$ {
+
+      init $INIT(auth)
+      req_reset $CMD(RESET_ALL)
 
     }
     ^dump$ {

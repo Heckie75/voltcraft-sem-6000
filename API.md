@@ -106,21 +106,21 @@ char-write-req 0x2b 0f051000000011ffff
                     + static start sequence for message, 0x0f
 
 Notification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60 ac ff ff
-                                     |  |  |     |  |  |  |  |  |  |  |     |  |  |  + static end sequence of message, 0xffff
-                                     |  |  |     |  |  |  |  |  |  |  |     |  |  + checksum byte starting with length-byte, ending w/ byte before
-                                     |  |  |     |  |  |  |  |  |  |  |     |  + Over power low-byte
-                                     |  |  |     |  |  |  |  |  |  |  |     + Over power high-byte
-                                     |  |  |     |  |  |  |  |  |  |  + LED 1=on / 0=off
-                                     |  |  |     |  |  |  |  |  |  + reduced mode end in min lox-byte
-                                     |  |  |     |  |  |  |  |  + reduced mode end in min high-byte
-                                     |  |  |     |  |  |  |  + reduced mode start in min low-byte
-                                     |  |  |     |  |  |  + reduced mode start in min high-byte
-                                     |  |  |     |  |  + reduced price / 100.0
-                                     |  |  |     |  + normal Price / 100.0
-                                     |  |  |     + reduced mode active 1=yes, 0=no
-                                     |  |  + Request settings command, 0x1000
-                                     |  + Length of payload starting w/ next byte incl. checksum
-                                     + static start sequence for message, 0x0f
+                                    |  |  |     |  |  |  |  |  |  |  |     |  |  |  + static end sequence of message, 0xffff
+                                    |  |  |     |  |  |  |  |  |  |  |     |  |  + checksum byte starting with length-byte, ending w/ byte before
+                                    |  |  |     |  |  |  |  |  |  |  |     |  + Over power low-byte
+                                    |  |  |     |  |  |  |  |  |  |  |     + Over power high-byte
+                                    |  |  |     |  |  |  |  |  |  |  + LED 1=on / 0=off
+                                    |  |  |     |  |  |  |  |  |  + reduced mode end in min lox-byte
+                                    |  |  |     |  |  |  |  |  + reduced mode end in min high-byte
+                                    |  |  |     |  |  |  |  + reduced mode start in min low-byte
+                                    |  |  |     |  |  |  + reduced mode start in min high-byte
+                                    |  |  |     |  |  + reduced price / 100.0
+                                    |  |  |     |  + normal Price / 100.0
+                                    |  |  |     + reduced mode active 1=yes, 0=no
+                                    |  |  + Request settings command, 0x1000
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
 ```
 
 ## Set LED ring
@@ -343,8 +343,6 @@ Notification handle = 0x2e value: 0f 10 14 00 01 0c 01 01 00 13 08 09 0a 0b 00 0
 If there are more than 1 schedulers set then there are multiple notifications. 
 ```
 # notification #1
-                                                 0  1  2  3  4  5  6  7  8  9  10 11
-                                        0  1  2  3  4  5  6  7  8  9  10 11 12 13 14
 Notification handle = 0x2e value: 0f 28 14 00 03 0a 01 01 01 13 07 0d 0b 2c 00 00 75 0b 01 00
                                   |  |  |     |  |  |  |  |  |  |  |  |  |  |     + Checksum of scheduler?
                                   |  |  |     |  |  |  |  |  |  |  |  |  |  + static, 0x0000
@@ -483,13 +481,25 @@ Note: Typical 0xffff end sequence is missing in this response. This is probably 
 255
 
 ## Reset data
-char-write-req 0x2b
+```
+char-write-req 2b 0f090f0000000000000010ffff
+                  | | |   |           | + static end sequence of message, 0xffff
+                  | | |   |           + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   + 0 = factory reset, 2 = reset stored consumption
+                  | | + Reset command 0x0f00
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
 
-15, 9, 15, 0, 0, 0, 0, 0, 0, 0, 16, 255, 255
-15, 9, 15, 0, 2, 0, 0, 0, 0, 0, 18, 255, 255
 
-0 - all data
-2 - stored consumption
+Notification handle = 0x002b value: 0f 05 0f 00 00 00 10 ff ff
+                                    |  |  |     |     |  + Static end sequence (0xffff) is missing in this notification!
+                                    |  |  |     |      + checksum byte starting with length-byte
+                                    |  |  |     + 0 = factory reset, 2 = reset stored consumption
+                                    |  |  + Reset command, 0x0f00
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+```
+
 
 # Device settings
 ## Get name
