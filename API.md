@@ -472,13 +472,26 @@ Note: Typical 0xffff end sequence is missing in this response. This is probably 
 ## Reguest data
 15
 5
-10 - 10 = day, 11 = month, 12 = year (total)
+10 - 10 = last 24h per hour, 11 = last 30 days per day, 12 = last year per month
 0
 0
 0
 11
 255
 255
+
+Year / month (4 bytes per record)
+0f 33 0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0b 00 18 ff ff
+            |        + percent
+            + 3 byte Wh
+
+Day (2 bytes per record) at 7:40							  			
+INFO:   <<<     Notification handle = 0x2b value: 0f 33 0a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+                                                              8     9     10    11    12    13    14    15
+INFO:   <<<     Notification handle = 0x2b value: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+                                                  16    17    18    19    20    21    22    23    0     1
+INFO:   <<<     Notification handle = 0x2b value: 00 00 00 00 00 00 00 00 00 0b 00 00 16 ff ff
+                                                  2     3     4     5     6
 
 ## Reset data
 ```

@@ -101,8 +101,10 @@ set HELP(randommode) "\
 set HELP(measure) "\
   --measure \[<s>\]                    - take measurements, optional duration in seconds (use 0 for single), otherwise forever"
 
-set HELP(header) "\
-  --header <measure|data>            - print header line for measurements or data"
+set HELP(data) "\
+  --data <day|month|year>            - request measured power consumption from enery meter\n\
+  --data reset                       - reset measured power consumption\n\
+  --data header                      - print header line for measurements or data"
 
 set HELP(settings) "\
   --settings                         - request settings from device, i.e. overload, led, price"
@@ -167,6 +169,9 @@ set CMD(SCHEDULER_EDIT)        1
 set CMD(SCHEDULER_DEL)         2
 set CMD(RESET_ALL)             0
 set CMD(RESET_DATA)            2
+set CMD(DATA_DAY)              10
+set CMD(DATA_MONTH)            11
+set CMD(DATA_YEAR)             12
 
 array set aliases              {}
 
@@ -181,6 +186,15 @@ set sem(name)                  ""
 set sem(serial)                ""
 set sem(alias)                 ""
 
+set sem(power)                 -1
+set sem(watt)                  -1
+set sem(voltage)               -1
+set sem(ampere)                -1
+set sem(frequency)             -1
+set sem(power_factor)          -1
+set sem(total)                 -1
+set sem(month)                 -1
+
 set sem(led)                   -1
 set sem(over_power)            -1
 set sem(normal_price)          -1
@@ -189,20 +203,13 @@ set sem(reduced_start)         0
 set sem(reduced_end)           0
 set sem(reduced_price)         -1
 
-set sem(power)                 -1
-set sem(watt)                  -1
-set sem(voltage)               -1
-set sem(ampere)                -1
-set sem(frequency)             -1
-set sem(power_factor)          -1
-set sem(total)                 -1
-
 set sem(countdown)             -1
 set sem(schedulers)            -1
 set sem(randommode)            -1
 
-
-
+array set data_per_hour        {}
+array set data_per_day         {}
+array set data_per_month       {}
 
 # prints help output
 proc help { argv } {
@@ -238,21 +245,22 @@ proc help { argv } {
     puts stderr "$HELP(overload)\n"
     puts stderr "\nMeasurement commands:\n"
     puts stderr "$HELP(status)"
-    puts stderr "$HELP(measure)"
-    puts stderr "$HELP(header)\n"
+    puts stderr "$HELP(measure)\n"
+    puts stderr "$HELP(data)"
     puts stderr "$HELP(price)"
-    puts stderr "\nOther commands:\n"
+    puts stderr "\nDevice commands:\n"
+    puts stderr "$HELP(device)"
     puts stderr "$HELP(sync)"
     puts stderr "$HELP(name)"
     puts stderr "$HELP(pin)"
     puts stderr "$HELP(settings)"
-    puts stderr "$HELP(device)"
+    puts stderr "$HELP(reset)"   
+    puts stderr "\nOther commands:\n"
     puts stderr "$HELP(print)"
     puts stderr "$HELP(dump)"
     puts stderr "$HELP(sleep)"
     puts stderr "$HELP(verbose)"
     puts stderr "$HELP(debug)"
-    puts stderr "$HELP(reset)"    
     puts stderr "$HELP(help)"
     puts stderr ""
 
@@ -268,18 +276,21 @@ proc help { argv } {
 proc print_sem {} {
 
   global sem
+  global data_per_hour
+  global data_per_day
+  global data_per_month
 
   set out ""
   append out [ print_device ]
   append out [ print_measurement ]
   append out [ print_settings ]
-
   append out [ print_schedulers ]
   append out [ print_countdown ]
   append out [ print_randommode ]
-#  append out $sem(header_data)
-#  append out [ print_data_hours ]
-#  append out [ print_data_minutes ]
+  append out $sem(header_data)
+  append out [ print_data [ array get data_per_hour ] ]
+  append out [ print_data [ array get data_per_day ] ]
+  append out [ print_data [ array get data_per_month ] ]
   puts -nonewline $out
 
 }
@@ -293,18 +304,17 @@ proc print_device {} {
   global sem
 
   set out ""
-  append out "\tMac:                 $sem(mac)\n"
-  append out "\tDevice PIN:          $sem(pin)\n"
 
   if { ( $sem(init) & $INIT(device) ) == $INIT(device) } {
 
+    append out "\tMac:                 $sem(mac)\n"
+    append out "\tDevice PIN:          $sem(pin)\n"
     append out "\tName:                $sem(name)\n"
     append out "\tSerial:              $sem(serial)\n"
+    append out "\tAlias:               $sem(alias)\n"
+    append out "\n"
 
   }
-
-  append out "\tAlias:               $sem(alias)\n"
-  append out "\n"
 
   return $out
 
@@ -349,9 +359,29 @@ proc print_measurement {} {
   append out "\t  Frequency:         $sem(frequency) Hz\n"
   append out "\t  Power factor:      [ power_factor ]\n"
   append out "\t  Total consumption: $sem(total) kWh\n"
+
+
   append out "\n"
 
   return $out
+
+}
+
+
+
+
+proc print_data { _data } {
+
+  array set data $_data
+  set out ""
+
+  foreach d [ lsort [ array names data ] ] {
+
+    append out "$d\t$data($d)\n"
+
+  }
+
+  return $out  
 
 }
 
@@ -1450,7 +1480,7 @@ proc req_sync {} {
 
   } else {
 
-    log "ERROR:\Synchronization of SEM failed"
+    log "ERROR:\tSynchronization of SEM failed"
     return -1
 
   }
@@ -1573,9 +1603,104 @@ proc parse_measurement { b } {
 
 
 
+proc req_data { cmd } {
+
+  global INIT
+  global CMD
+  global sem
+
+  global data_per_hour
+  global data_per_day
+  global data_per_month
+
+  set bytes {}
+
+  log "INFO:\tRequest measured power consumption"
+
+  # Byte 1: measure power consumption, 10 = last 24h per hour, 11 = last 30 days per day, 12 = last year per month
+  lappend bytes $cmd
+  lappend bytes 0
+  lappend bytes 0
+  lappend bytes 0
+
+  set response [ command_req $bytes ]
+
+  if { [ llength $response ] == 50 \
+      && [ lindex $response 0 ] == $CMD(DATA_DAY) \
+      && [ lindex $response 1 ] == 0 } {
+
+    set now [ expr [ clock seconds ] / 3600 * 3600 - [ time_offset ] ]
+    for { set i 0 } { $i < 24 } { incr i } {
+
+        set h [ lindex $response [ expr $i * 2 + 2 ] ]
+        set l [ lindex $response [ expr $i * 2 + 3 ] ]
+        set v [ expr $h << 8 | $l ]
+        set h [ clock format [ expr $now - ( 24 - $i ) * 3600 ] -format "%Y-%m-%d %H:%M" ]
+        set data_per_hour($h) $v
+
+    }
+
+    log "INFO:\tMeasured consumption of last day per hour successfully requested"
+
+    return 0
+
+  } elseif { [ llength $response ] == 122 \
+      && [ lindex $response 0 ] == $CMD(DATA_MONTH) \
+      && [ lindex $response 1 ] == 0 } {
+
+    set now [ expr [ clock seconds ] / 86400 * 86400 ]
+    for { set i 0 } { $i < 30 } { incr i } {
+
+        set b3 [ lindex $response [ expr $i * 4 + 2 ] ]
+        set b2 [ lindex $response [ expr $i * 4 + 3 ] ]
+        set b1 [ lindex $response [ expr $i * 4 + 4 ] ]
+        set v [ expr $b3 << 16 | $b2 << 8 | $b1 ]
+        set d [ clock format [ expr $now - ( 29 - $i ) * 86400 ] -format "%Y-%m-%d" -timezone :GMT ]
+        set data_per_day($d) $v
+
+    }
+
+    log "INFO:\tMeasured consumption of last day per hour successfully requested"
+
+    return 0
+
+  } elseif { [ llength $response ] == 50 \
+      && [ lindex $response 0 ] == $CMD(DATA_YEAR) \
+      && [ lindex $response 1 ] == 0 } {
+
+    set year [ clock format [ clock seconds ] -format %Y -timezone :GMT ]
+    set month [ scan [ clock format [ clock seconds ] -format %m -timezone :GMT ] %d ]
+    for { set i 0 } { $i < 12 } { incr i } {
+
+        set b3 [ lindex $response [ expr $i * 4 + 2 ] ]
+        set b2 [ lindex $response [ expr $i * 4 + 3 ] ]
+        set b1 [ lindex $response [ expr $i * 4 + 4 ] ]
+        set v [ expr $b3 << 16 | $b2 << 8 | $b1 ]
+        set d "[ expr $year - ( $month -  12 + $i < 0 ? 1 : 0 ) ]-[ with_leading_zeros [ expr ( $month + $i ) % 12 + 1 ] 2 ]"
+        set data_per_month($d) $v
+
+    }
+
+    log "INFO:\tMeasured consumption of last day per hour successfully requested"
+
+    return 0
+
+  } else {
+
+    log "ERROR:\tRequesting measured power consumption failed"
+    return -1
+
+  }
+
+}
+
+
+
+
 proc req_reset { cmd } {
 
   global CMD
+  global INIT
   global sem
 
   set bytes {}
@@ -1601,14 +1726,24 @@ proc req_reset { cmd } {
   if { [ llength $response ] == 4 \
       && [ lindex $response 0 ] == 15 \
       && [ lindex $response 1 ] == 0 \
-      && [ lindex $response 2 ] == $cmd } {
+      && [ lindex $response 2 ] == $CMD(RESET_ALL) } {
 
-    log "INFO:\tSEM successfully reset"
+    sem sem(init) [ expr $INIT(connect) | $INIT(auth) ]
+
+    log "INFO:\tFactory reset successful"
+    return 0
+
+  } elseif { [ llength $response ] == 4 \
+      && [ lindex $response 0 ] == 15 \
+      && [ lindex $response 1 ] == 0 \
+      && [ lindex $response 2 ] == $CMD(RESET_DATA) } {
+
+    log "INFO:\tData reset successful"
     return 0
 
   } else {
 
-    log "ERROR:\Resetting SEM failed"
+    log "ERROR:\tResetting SEM failed"
     return -1
 
   }
@@ -2330,8 +2465,6 @@ proc do_command { command } {
   global sem
   global verbose
   global CMD
-  global data_per_hour
-  global data_per_minute
 
   switch -regexp $command {
 
@@ -2576,10 +2709,33 @@ proc do_command { command } {
       set_randommode 1 $mask $start $end
 
     }
-    ^data\ reset$ {
+    ^data.*$ {
+
+      check_command $command 1 "data" {^data (reset|day|month|year|header)$}
 
       init $INIT(auth)
-      req_reset $CMD(RESET_DATA)
+
+      if { [ lindex $command 1 ] == "reset" } {
+
+        req_reset $CMD(RESET_DATA)
+
+      } elseif { [ lindex $command 1 ] == "header" } {
+
+        set sem(header_data) "Timestamp\tWatt (W)\n"
+
+      } elseif { [ lindex $command 1 ] == "day" } {
+
+        req_data $CMD(DATA_DAY)
+
+      } elseif { [ lindex $command 1 ] == "month" } {
+
+        req_data $CMD(DATA_MONTH)
+
+      } elseif { [ lindex $command 1 ] == "year" } {
+
+        req_data $CMD(DATA_YEAR)
+      
+      }
 
     }
     ^price.*$ {
