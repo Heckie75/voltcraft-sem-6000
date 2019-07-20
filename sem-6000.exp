@@ -99,7 +99,8 @@ set HELP(randommode) "\
   --randommode                      - query status of randommode"
 
 set HELP(measure) "\
-  --measure \[<s>\]                    - take measurements, optional duration in seconds (use 0 for single), otherwise forever"
+  --measure header                   - print header line for measurements\n\
+\  --measure \[<s>\]                 - take measurements, optional duration in seconds (use 0 for single), otherwise forever"
 
 set HELP(data) "\
   --data <day|month|year>            - request measured power consumption from enery meter\n\
@@ -238,6 +239,7 @@ proc help { argv } {
     puts stderr "$HELP(off)"
     puts stderr "$HELP(toggle)"
     puts stderr "\nScheduler commands:\n"
+    puts stderr "$HELP(scheduler)"
     puts stderr "\nCountdown commands:\n"
     puts stderr "$HELP(countdown)"
     puts stderr "\nPower commands:\n"
@@ -1728,7 +1730,7 @@ proc req_reset { cmd } {
       && [ lindex $response 1 ] == 0 \
       && [ lindex $response 2 ] == $CMD(RESET_ALL) } {
 
-    sem sem(init) [ expr $INIT(connect) | $INIT(auth) ]
+    set sem(init) [ expr $INIT(connect) | $INIT(auth) ]
 
     log "INFO:\tFactory reset successful"
     return 0
@@ -2499,9 +2501,9 @@ proc do_command { command } {
       req_switch [ expr $sem(power) == 0 ? 1 : 0 ]
 
     }
-    ^header\ measure$ {
+    ^measure\ header$ {
 
-      set sem(header_measure) "Timestamp\tPower\tVolt (V)\tAmpere (A)\tWatt (W)\tFrequency (Hz)\tPower factor"
+      puts "Timestamp\tPower\tVolt (V)\tAmpere (A)\tWatt (W)\tFrequency (Hz)\tPower factor"
 
     }
     ^measure.*$ {
@@ -2515,8 +2517,6 @@ proc do_command { command } {
       }
 
       init $INIT(auth)
-
-      puts $sem(header_measure)
 
       set current_seconds -1
       while { $current_seconds < $until || $until == -1 } {
@@ -2721,7 +2721,7 @@ proc do_command { command } {
 
       } elseif { [ lindex $command 1 ] == "header" } {
 
-        set sem(header_data) "Timestamp\tWatt (W)\n"
+        set sem(header_data) "Timestamp\tWatt (Wh)\n"
 
       } elseif { [ lindex $command 1 ] == "day" } {
 

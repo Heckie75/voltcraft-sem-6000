@@ -1,5 +1,3 @@
-(bluetooth.src == fc:69:47:06:cb:c6 || bluetooth.dst == fc:69:47:06:cb:c6)
-
 https://www.revogi.com/smart-power/power-plug-eu/#section0
 
 # PIN
@@ -469,29 +467,96 @@ Notification handle = 0x002e value: 0f 11 04 00 01 00 00 00 eb 00 0c 32 00 00 00
 
 Note: Typical 0xffff end sequence is missing in this response. This is probably since there is no room for it.
 
-## Reguest data
-15
-5
-10 - 10 = last 24h per hour, 11 = last 30 days per day, 12 = last year per month
-0
-0
-0
-11
-255
-255
+## Reguest measurements for year, month and day
+```
+char-write-req 2b 0f050b0000000cffff
+                  | | | |     | + static end sequence of message, 0xffff
+                  | | | |     + checksum byte starting with length-byte, ending w/ byte before
+                  | | | + Static 0x000000
+                  | | + 0a = last 24h per hour, 0b = last 30 days per day, 0c = last year per month
+                  | + Length of payload starting w/ next byte incl. checksum
+                  + static start sequence for message, 0x0f
 
-Year / month (4 bytes per record)
-0f 33 0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 0b 00 18 ff ff
-            |        + percent
-            + 3 byte Wh
+```
 
-Day (2 bytes per record) at 7:40							  			
-INFO:   <<<     Notification handle = 0x2b value: 0f 33 0a 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-                                                              8     9     10    11    12    13    14    15
-INFO:   <<<     Notification handle = 0x2b value: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
-                                                  16    17    18    19    20    21    22    23    0     1
-INFO:   <<<     Notification handle = 0x2b value: 00 00 00 00 00 00 00 00 00 0b 00 00 16 ff ff
-                                                  2     3     4     5     6
+After this request there are several notification handles. 
+
+### Year
+For requests on year level there are 12 records for each month. Each records has 4 bytes and 3 bytes representing for consumption in Wh. 
+
+```
+Notification handle = 0x002e value: 0f 33 0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+                                    |  |  |     |           |           |           + Current month - 8, 3 bytes for Wh
+                                    |  |  |     |           |           + Current month - 9, 3 bytes for Wh
+                                    |  |  |     |           + Current month - 10, 3 bytes for Wh
+                                    |  |  |     + Current month - 11, 3 bytes for Wh
+                                    |  |  + 0x0c00, Request data for year request
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+
+Notification handle = 0x002e value: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+                                    |           |           |           |           + Current month - 3, 3 bytes for Wh
+                                    |           |           |           + Current month - 4, 3 bytes for Wh
+                                    |           |           + Current month - 5, 3 bytes for Wh
+                                    |           + Current month - 6, 3 bytes for Wh
+                                    + Current month - 7, 3 bytes for Wh
+
+Notification handle = 0x002e value: 00 00 00 00 00 00 00 00 00 04 e3 00 f4 ff ff
+                                    |           |           |           |  + static end sequence of message, 0xffff
+                                    |           |           |           + checksum byte starting with length-byte, ending w/ byte before
+                                    |           |           + Current month, 3 bytes for Wh
+                                    |           + Current month - 1, 3 bytes for Wh
+                                    + Current month - 2, 3 bytes for Wh
+```
+
+### Month
+For requests on month level there are 30 records for each day in month. Each records has 4 bytes and 3 bytes  representing for consumption in Wh. 
+
+```
+Notification handle = 0x002e value: 0f 7b 0b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+                                    |  |  |     |           |           |           + Today - 26, 3 bytes for Wh
+                                    |  |  |     |           |           + Today - 27, 3 bytes for Wh
+                                    |  |  |     |           + Today - 28, 3 bytes for Wh
+                                    |  |  |     + Today - 29, 3 bytes for Wh
+                                    |  |  + 0x0c00, Request data for month request
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+
+Notification handle = 0x002e value: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Notification handle = 0x002e value: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Notification handle = 0x002e value: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Notification handle = 0x002e value: 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
+Notification handle = 0x002e value: 00 00 00 00 00 00 e3 00 00 01 37 00 00 01 23 00 00 01 37 00
+Notification handle = 0x002e value: 00 00 6f 00 f2 ff ff
+                                    |           |  + static end sequence of message, 0xffff
+                                    |           + checksum byte starting with length-byte, ending w/ byte before
+                                    + Today, 3 bytes for Wh
+```
+
+### Day
+For requests on day level there are 24 records for each hour in day. Each records has 2 bytes representing for consumption in Wh. 
+
+```
+Notification handle = 0x002e value: 0f 33 0a 00 00 0e 00 0e 00 0e 00 0e 00 0c 00 09 00 08 00 0b
+                                    |  |  |     |     |     |     |     |     |     |     + Current hour - 16, 2 bytes for Wh
+                                    |  |  |     |     |     |     |     |     |     + Current hour - 17, 2 bytes for Wh
+                                    |  |  |     |     |     |     |     |     + Current hour - 18, 2 bytes for Wh
+                                    |  |  |     |     |     |     |     + Current hour - 19, 2 bytes for Wh
+                                    |  |  |     |     |     |     + Current hour - 20, 2 bytes for Wh
+                                    |  |  |     |     |     + Current hour - 21, 2 bytes for Wh
+                                    |  |  |     |     + Current hout - 22, 3 bytes for Wh
+                                    |  |  |     + Current hour - 23, 2 bytes for Wh
+                                    |  |  + 0x0c00, Request data for month request
+                                    |  + Length of payload starting w/ next byte incl. checksum
+                                    + static start sequence for message, 0x0f
+
+Notification handle = 0x002e value: 00 0e 00 0e 00 11 00 0f 00 10 00 0f 00 0d 00 0e 00 0e 00 0e
+Notification handle = 0x002e value: 00 0e 00 0e 00 0e 00 0e 00 0d 00 00 42 ff ff
+                                                            |     |     |  + static end sequence of message, 0xffff
+                                                            |     |     + checksum byte starting with length-byte, ending w/ byte before
+                                                            |     + Current hour, 2 bytes for Wh
+                                                            + Current hour - 2 , 2 bytes for Wh
+```
 
 ## Reset data
 ```
