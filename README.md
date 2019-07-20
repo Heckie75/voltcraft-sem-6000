@@ -84,7 +84,7 @@ $ ./sem-6000.exp f --sync
 
 In order to get an overview of the full feature set enter the following:
 ```
-$ ./sem-6000.exp --help
+$ ./sem-6000.exp fr --help
 Usage: <mac/alias> <pin> --<command1> <parameters...> --<command2>
                                    <mac>: bluetooth mac address of smart energy meter
                                    <alias>: you can use alias instead of mac address, see ~/.known_sem6
@@ -126,24 +126,15 @@ Countdown commands:
 
  --countdown                        - query status of countdown
 
-Power commands:
-
- --led <on|off>                     - turn led ring on / off
- --overload <watts>
-                                    - set overload with high-water-mark and actions
-                                      watts - high-water-mark, max. 3680, e.g. 3680 for 3680W
-
-
 Measurement commands:
 
  --status                           - get status incl. voltage, ampere, watts, power factor and frequency
+ --measure header                   - print header line for measurements
  --measure [<s>]                    - take measurements, optional duration in seconds (use 0 for single), otherwise forever
 
  --data <day|month|year>            - request measured power consumption from enery meter
  --data reset                       - reset measured power consumption
  --data header                      - print header line for measurements or data
- --price <normal price> [<reduced price> <hh:mm> <hh:mm>]
-                                    - set price and optionally a reduced price with start and end time
 
 Device commands:
 
@@ -151,7 +142,17 @@ Device commands:
  --sync                             - synchronize time
  --name <name>                      - give smart meter a new name, max. 18 characters
  --pin <1234|reset>                 - change PIN or reset to default PIN, i.e. 0000
+
+Device settings:
+
  --settings                         - request settings from device, i.e. overload, led, price
+ --led <on|off>                     - turn led ring on / off
+ --overload <watts>
+                                    - set overload with high-water-mark and actions
+                                      watts - high-water-mark, max. 3680, e.g. 3680 for 3680W
+
+ --price <normal price> [<reduced price> <hh:mm> <hh:mm>]
+                                    - set price and optionally a reduced price with start and end time
  --reset                            - factory reset
 
 Other commands:

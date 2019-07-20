@@ -100,7 +100,7 @@ set HELP(randommode) "\
 
 set HELP(measure) "\
   --measure header                   - print header line for measurements\n\
-\  --measure \[<s>\]                 - take measurements, optional duration in seconds (use 0 for single), otherwise forever"
+  --measure \[<s>\]                    - take measurements, optional duration in seconds (use 0 for single), otherwise forever"
 
 set HELP(data) "\
   --data <day|month|year>            - request measured power consumption from enery meter\n\
@@ -242,21 +242,21 @@ proc help { argv } {
     puts stderr "$HELP(scheduler)"
     puts stderr "\nCountdown commands:\n"
     puts stderr "$HELP(countdown)"
-    puts stderr "\nPower commands:\n"
-    puts stderr "$HELP(led)"
-    puts stderr "$HELP(overload)\n"
     puts stderr "\nMeasurement commands:\n"
     puts stderr "$HELP(status)"
     puts stderr "$HELP(measure)\n"
     puts stderr "$HELP(data)"
-    puts stderr "$HELP(price)"
     puts stderr "\nDevice commands:\n"
     puts stderr "$HELP(device)"
     puts stderr "$HELP(sync)"
     puts stderr "$HELP(name)"
     puts stderr "$HELP(pin)"
+    puts stderr "\nDevice settings:\n"
     puts stderr "$HELP(settings)"
-    puts stderr "$HELP(reset)"   
+    puts stderr "$HELP(led)"
+    puts stderr "$HELP(overload)\n"
+    puts stderr "$HELP(price)"
+    puts stderr "$HELP(reset)"
     puts stderr "\nOther commands:\n"
     puts stderr "$HELP(print)"
     puts stderr "$HELP(dump)"
