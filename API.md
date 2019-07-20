@@ -1,5 +1,3 @@
-https://www.revogi.com/smart-power/power-plug-eu/#section0
-
 # PIN
 ## Authorization with PIN
 ```
