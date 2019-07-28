@@ -387,7 +387,7 @@ proc print_data { _data } {
 
   }
 
-  return $out  
+  return $out
 
 }
 
@@ -502,7 +502,7 @@ proc print_schedulers {} {
     append out "\t  Weekdays:          $sem("scheduler_daymask_$i")\n"
     append out "\n"
 
-  } 
+  }
 
   return $out
 
@@ -540,67 +540,71 @@ proc print_randommode {} {
 
 proc json_sem {} {
 
-    global sem
-  
-    set out "{\n"
-    append out "[ json_device ],\n"
-    append out "[ json_measurement ]\n"
+  global sem
 
-    append out "}"
-    puts $out
-  
-  }
-  
-  
-  
-  
-  proc json_device {} {
-  
-    global INIT
-    global sem
-  
-    set out ""
-  
-    if { ( $sem(init) & $INIT(device) ) == $INIT(device) } {
-  
-      append out "  \"device\" : {\n"
-      append out "    \"mac\" : \"$sem(mac)\",\n"
-      append out "    \"pin\" : \"$sem(pin)\",\n"
-      append out "    \"name\" : \"$sem(name)\",\n"
-      append out "    \"serial\" : \"$sem(serial)\",\n"
-      append out "    \"alias\" : \"$sem(alias)\"\n"
-      append out "  }"
-  
-    }
-  
-    return $out
-  
-  }
-  
+  set out "{\n"
+  append out "[ json_device ],\n"
+  append out "[ json_measurement ]\n"
 
-    
-  
-  proc json_measurement {} {
-  
-    global INIT
-    global sem
-  
-    if { ( $sem(init) & $INIT(measurement) ) != $INIT(measurement) } {
-      return "  \"status\" : null,"
-    }
-  
-    append out "  \"status\" : {\n"
-    append out "    \"power\" : $sem(power),\n"
-    append out "    \"voltage\" : $sem(voltage),\n"
-    append out "    \"ampere\" : $sem(ampere),\n"
-    append out "    \"watts\" : $sem(watt),\n"
-    append out "    \"frequency\" : $sem(frequency),\n"
-    append out "    \"total\" : $sem(total)\n"
+  append out "}"
+  puts $out
+
+}
+
+
+
+
+proc json_device {} {
+
+  global INIT
+  global sem
+
+  set out ""
+
+  if { ( $sem(init) & $INIT(device) ) == $INIT(device) } {
+
+    append out "  \"device\" : {\n"
+    append out "    \"mac\" : \"$sem(mac)\",\n"
+    append out "    \"pin\" : \"$sem(pin)\",\n"
+    append out "    \"name\" : \"$sem(name)\",\n"
+    append out "    \"serial\" : \"$sem(serial)\",\n"
+    append out "    \"alias\" : \"$sem(alias)\"\n"
     append out "  }"
-  
-    return $out
-  
+
+  } else {
+
+    append out "  \"device\" : null"
+
   }
+
+  return $out
+
+}
+
+
+
+
+proc json_measurement {} {
+
+  global INIT
+  global sem
+
+  if { ( $sem(init) & $INIT(measurement) ) != $INIT(measurement) } {
+    return "  \"status\" : null"
+  }
+
+  append out "  \"status\" : {\n"
+  append out "    \"power\" : $sem(power),\n"
+  append out "    \"voltage\" : $sem(voltage),\n"
+  append out "    \"ampere\" : $sem(ampere),\n"
+  append out "    \"watts\" : $sem(watt),\n"
+  append out "    \"frequency\" : $sem(frequency),\n"
+  append out "    \"total\" : $sem(total)\n"
+  append out "  }"
+
+  return $out
+
+}
 
 
 
@@ -2092,15 +2096,15 @@ proc req_schedulers { } {
   set pages 1
   for { set page 0 } { $page < $pages } { incr page } {
 
-    set bytes {} 
-    
+    set bytes {}
+
     # Request scheduler command, 0x140000
     lappend bytes 20
     lappend bytes 0
 
     # Page
     lappend bytes $page
-    
+
     # Static 0x0000
     lappend bytes 0
     lappend bytes 0
@@ -2164,7 +2168,7 @@ proc parse_schedulers { page b } {
 proc set_scheduler { cmd slot active action daymask date time } {
 
   global CMD
-  
+
   global sem
 
   set bytes {}
@@ -2194,7 +2198,7 @@ proc set_scheduler { cmd slot active action daymask date time } {
 
   # Scheduler command, 0 = add, 1 = edit, 2 = delete
   lappend bytes $cmd
-  
+
   # slot
   lappend bytes [ expr $cmd == $CMD(SCHEDULER_ADD) ? 0 : $slot ]
 
@@ -2230,7 +2234,7 @@ proc set_scheduler { cmd slot active action daymask date time } {
     lappend bytes [ lindex $dl 1 ]
     lappend bytes [ lindex $dl 2 ]
 
-  } 
+  }
 
   # hour, minute
   set hm [ split $time ":" ]
@@ -2327,7 +2331,7 @@ proc set_randommode { status daymask start end } {
   lappend bytes 21
   lappend bytes 0
 
-  
+
   if { $status == 1 } {
 
     # Randommode status
@@ -2355,7 +2359,7 @@ proc set_randommode { status daymask start end } {
     lappend bytes 0
     lappend bytes 0
 
-  } 
+  }
 
   lappend bytes 0
   lappend bytes 0
@@ -2632,14 +2636,14 @@ proc do_command { command } {
     ^scheduler\ (on|off).*$ {
 
       if { [ llength $command ] == 3 } {
-        
+
         append command " [ clock format [ clock seconds ] -format %Y-%m-%d ]"
 
       } elseif { [ lindex $command 3 ] == "sameday" } {
-        
+
         set command [ lreplace $command 3 3 ]
         append command " [ sameday_week_mask ]"
-      
+
       }
 
       check_command $command 3 "scheduler" {^scheduler (on|off) ([0-2][0-9]:[0-5][0-9]|\+[0-9]+) ([Ss_][Mm_][Tt_][Ww_][Tt_][Ff_][Ss_]|20[0-9]{2}-[01][0-9]-[0-3][0-9])$}
@@ -2667,7 +2671,7 @@ proc do_command { command } {
     ^scheduler\ [0-9]{1,2}.*$ {
 
       check_command $command 2 "scheduler" {^scheduler ([1-9]|1[0-2]) (set|unset|reset)$}
-      
+
       init $INIT(auth)
 
       # request current state
@@ -2805,7 +2809,7 @@ proc do_command { command } {
       } elseif { [ lindex $command 1 ] == "year" } {
 
         req_data $CMD(DATA_YEAR)
-      
+
       }
 
     }
@@ -2851,7 +2855,7 @@ proc do_command { command } {
 
       set_overload $limit
 
-    }     
+    }
     ^device$ {
 
       init [ expr $INIT(auth) | $INIT(device) ]
@@ -2903,7 +2907,7 @@ proc do_command { command } {
 
       json_sem
 
-    }    
+    }
     ^sleep.*$ {
 
       check_command $command 1 "sleep" {^sleep [0-9]+$}
