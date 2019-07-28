@@ -140,6 +140,9 @@ set HELP(dump) "\
 set HELP(print) "\
   --print                            - print gathered information"
 
+set HELP(json) "\
+  --json                             - print some gathered information in JSON format"
+
 set HELP(sleep) "\
   --sleep <n>                        - pause processing for n seconds"
 
@@ -530,6 +533,73 @@ proc print_randommode {} {
   return $out
 
 }
+
+
+
+
+proc json_sem {} {
+
+    global sem
+  
+    set out "{\n"
+    append out "[ json_device ],\n"
+    append out "[ json_measurement ]\n"
+
+    append out "}"
+    puts $out
+  
+  }
+  
+  
+  
+  
+  proc json_device {} {
+  
+    global INIT
+    global sem
+  
+    set out ""
+  
+    if { ( $sem(init) & $INIT(device) ) == $INIT(device) } {
+  
+      append out "  \"device\" : {\n"
+      append out "    \"mac\" : \"$sem(mac)\",\n"
+      append out "    \"pin\" : \"$sem(pin)\",\n"
+      append out "    \"name\" : \"$sem(name)\",\n"
+      append out "    \"serial\" : \"$sem(serial)\",\n"
+      append out "    \"alias\" : \"$sem(alias)\"\n"
+      append out "  }"
+  
+    }
+  
+    return $out
+  
+  }
+  
+
+    
+  
+  proc json_measurement {} {
+  
+    global INIT
+    global sem
+  
+    if { ( $sem(init) & $INIT(measurement) ) != $INIT(measurement) } {
+      return "  \"status\" : null,"
+    }
+  
+    append out "  \"status\" : {\n"
+    append out "    \"power\" : $sem(power),\n"
+    append out "    \"voltage\" : $sem(voltage),\n"
+    append out "    \"ampere\" : $sem(ampere),\n"
+    append out "    \"watts\" : $sem(watt),\n"
+    append out "    \"frequency\" : $sem(frequency),\n"
+    append out "    \"total\" : $sem(total)\n"
+    append out "  }"
+  
+    return $out
+  
+  }
 
 
 
@@ -2828,6 +2898,11 @@ proc do_command { command } {
       print_sem
 
     }
+    ^json$ {
+
+      json_sem
+
+    }    
     ^sleep.*$ {
 
       check_command $command 1 "sleep" {^sleep [0-9]+$}
