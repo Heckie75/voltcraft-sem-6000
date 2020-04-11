@@ -539,13 +539,20 @@ proc print_randommode {} {
 proc json_sem {} {
 
   global sem
+  global data_per_hour
+  global data_per_day
+  global data_per_month
 
   set out "{\n"
   append out "[ json_device ],\n"
   append out "[ json_measurement ],\n"
   append out "[ json_settings ],\n"
-  append out "[ json_schedulers ]\n"
-
+  append out "[ json_schedulers ],\n"
+  append out "[ json_countdown ],\n"
+  append out "[ json_randommode ],\n"
+  append out "[ json_data "data_per_hour" [ array get data_per_hour ] ],\n"
+  append out "[ json_data "data_per_day" [ array get data_per_day ] ],\n"
+  append out "[ json_data "data_per_month" [ array get data_per_month ] ]\n"
   append out "}"
   puts $out
 
@@ -653,15 +660,16 @@ proc json_schedulers {} {
 
   global sem
 
-  if { $sem(schedulers) <= 0 } {
+  if { $sem(schedulers) < 0 } {
     return "  \"schedulers\" : null"
-  } 
+  }
 
   append out "  \"schedulers\" : \["
 
   for { set i 0 } { $i < $sem(schedulers) } { incr i } {
 
     append out "  \{\n"
+    append out "    \"id\" : [ expr $i + 1 ],\n"
     append out "    \"slot\" : $sem("scheduler_slot_$i"),\n"
     append out "    \"active\" : $sem("scheduler_active_$i"),\n"
     append out "    \"action\" : $sem("scheduler_action_$i"),\n"
@@ -676,11 +684,106 @@ proc json_schedulers {} {
     }
 
   }
-  append out "]"
+  append out "  ]"
 
-  return $out  
-  
+  return $out
+
 }
+
+
+
+
+proc json_countdown {} {
+
+  global sem
+
+  if { $sem(countdown) < 0 } {
+
+    return "  \"countdown\" : null"
+
+  } elseif { $sem(countdown) > 0 } {
+
+    set runtime [ expr ( $sem(countdown_schedule) - $sem(countdown_origin) ) ]
+    set remain [ expr ( $sem(countdown_schedule) - [ clock seconds ] + [ time_offset ] ) ]
+
+    append out "  \"countdown\" : \{\n"
+    append out "    \"action\" : $sem(countdown),\n"
+    append out "    \"started\" : \"[ datetime_str $sem(countdown_origin) ]\",\n"
+    append out "    \"eta\" : \"[ datetime_str $sem(countdown_schedule) ]\",\n"
+    append out "    \"runtime\" : $runtime,\n"
+    append out "    \"remaining\" : $remain\n"
+    append out "  \}"
+
+  } else {
+
+    append out "  \"countdown\" : \{\}"
+
+  }
+
+  return $out
+
+}
+
+
+
+
+proc json_randommode {} {
+
+  global sem
+
+  if { $sem(randommode) > 0 } {
+
+    append out "  \"randommode\" : \{\n"
+    append out "    \"weekdays\" :\"$sem(randommode_daymask)\",\n"
+    append out "    \"start\" : \"$sem(randommode_start)\",\n"
+    append out "    \"end\" : \"$sem(randommode_end)\"\n"
+    append out "  \}"
+
+  } elseif { $sem(randommode) == 0 } {
+
+    append out "  \"randommode\" : \{\}"
+
+  } else {
+
+    append out "  \"randommode\" : null"
+
+  }
+
+  return $out
+
+}
+
+
+
+proc json_data { _obj _data } {
+
+  array set data $_data
+  set out "  \"$_obj\" : \[\n"
+
+  set size [ array size data ]
+  set i 0
+
+  foreach d [ lsort [ array names data ] ] {
+
+    incr i
+
+    append out "    \{\n"
+    append out "      \"period\" : \"$d\",\n"
+    append out "      \"consumption\" : $data($d)\n"
+
+    if { $i < $size } {
+      append out "    \},\n"
+    } else {
+      append out "    \}\n"
+    }
+  }
+
+  append out "  \]"
+
+  return $out
+
+}
+
 
 
 
