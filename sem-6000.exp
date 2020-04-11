@@ -337,7 +337,7 @@ proc calc_power_factor { power voltage ampere watt } {
 
   } else {
 
-    return 0
+    return 1
 
   }
 
