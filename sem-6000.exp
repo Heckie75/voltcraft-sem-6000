@@ -329,17 +329,15 @@ proc print_device {} {
 
 
 
-proc power_factor {} {
+proc calc_power_factor { power voltage ampere watt } {
 
-  global sem
+  if { $power == 1 && $voltage > 0 && $ampere > 0 } {
 
-  if { $sem(power) == 1 && $sem(voltage) > 0 && $sem(ampere) > 0 } {
-
-    return [ format_decimal [ expr $sem(watt) / $sem(voltage) / $sem(ampere) ] ]
+    return [ format_decimal [ expr $watt / $voltage / $ampere ] ]
 
   } else {
 
-    return "n/a"
+    return 0
 
   }
 
@@ -363,7 +361,7 @@ proc print_measurement {} {
   append out "\t  Ampere:            $sem(ampere) A\n"
   append out "\t  Watts:             $sem(watt) W\n"
   append out "\t  Frequency:         $sem(frequency) Hz\n"
-  append out "\t  Power factor:      [ power_factor ]\n"
+  append out "\t  Power factor:      $sem(power_factor)\n"
   append out "\t  Total consumption: $sem(total) kWh\n"
 
 
@@ -400,7 +398,7 @@ proc print_measurement_as_csv {} {
 
   append out [ current_datetime_str ]
   append out "\t$sem(power)\t$sem(voltage)\t$sem(ampere)"
-  append out "\t$sem(watt)\t$sem(frequency)\t[ power_factor ]"
+  append out "\t$sem(watt)\t$sem(frequency)\t$sem(power_factor)"
 
   return $out
 
@@ -599,6 +597,7 @@ proc json_measurement {} {
   append out "    \"ampere\" : $sem(ampere),\n"
   append out "    \"watts\" : $sem(watt),\n"
   append out "    \"frequency\" : $sem(frequency),\n"
+  append out "    \"power_factor\" : $sem(power_factor),\n"
   append out "    \"total\" : $sem(total)\n"
   append out "  }"
 
@@ -1670,6 +1669,7 @@ proc parse_measurement { b } {
   set sem(watt)         [ expr ( [ lindex $b 3 ] << 16 | [ lindex $b 4 ] << 8  | [ lindex $b 5 ] ) / 1000.0 ]
   set sem(voltage)      [ expr [ lindex $b 6 ] ]
   set sem(ampere)       [ expr ( [ lindex $b 7 ] << 8  | [ lindex $b 8 ] ) / 1000.0 ]
+  set sem(power_factor) [ calc_power_factor $sem(power) $sem(voltage) $sem(ampere) $sem(watt) ]
   set sem(frequency)    [ expr [ lindex $b 9 ] ]
   set sem(total)        [ expr ( [ lindex $b 12 ] << 24 | [ lindex $b 13 ] << 16 | [ lindex $b 14 ] << 8  | [ lindex $b 15 ] ) / 1000.0 ]
 
