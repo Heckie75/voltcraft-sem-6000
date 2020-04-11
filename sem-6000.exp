@@ -542,7 +542,9 @@ proc json_sem {} {
 
   set out "{\n"
   append out "[ json_device ],\n"
-  append out "[ json_measurement ]\n"
+  append out "[ json_measurement ],\n"
+  append out "[ json_settings ],\n"
+  append out "[ json_schedulers ]\n"
 
   append out "}"
   puts $out
@@ -561,13 +563,13 @@ proc json_device {} {
 
   if { ( $sem(init) & $INIT(device) ) == $INIT(device) } {
 
-    append out "  \"device\" : {\n"
+    append out "  \"device\" : \{\n"
     append out "    \"mac\" : \"$sem(mac)\",\n"
     append out "    \"pin\" : \"$sem(pin)\",\n"
     append out "    \"name\" : \"$sem(name)\",\n"
     append out "    \"serial\" : \"$sem(serial)\",\n"
     append out "    \"alias\" : \"$sem(alias)\"\n"
-    append out "  }"
+    append out "  \}"
 
   } else {
 
@@ -591,7 +593,7 @@ proc json_measurement {} {
     return "  \"status\" : null"
   }
 
-  append out "  \"status\" : {\n"
+  append out "  \"status\" : \{\n"
   append out "    \"power\" : $sem(power),\n"
   append out "    \"voltage\" : $sem(voltage),\n"
   append out "    \"ampere\" : $sem(ampere),\n"
@@ -599,12 +601,86 @@ proc json_measurement {} {
   append out "    \"frequency\" : $sem(frequency),\n"
   append out "    \"power_factor\" : $sem(power_factor),\n"
   append out "    \"total\" : $sem(total)\n"
-  append out "  }"
+  append out "  \}"
 
   return $out
 
 }
 
+
+
+
+proc json_settings {} {
+
+  global sem
+  global INIT
+
+  if { ( $sem(init) & $INIT(settings) ) == $INIT(settings) } {
+
+    append out "  \"settings\" : \{\n"
+    append out "   \"led\" : $sem(led),\n"
+    append out "   \"overload\" : $sem(over_power),\n"
+    append out "   \"price\" : [ format_decimal [ expr $sem(normal_price) / 100.0 ] ],\n"
+
+    if { $sem(reduced_mode) == 1 } {
+
+      append out "   \"reduced\" : \{\n"
+      append out "     \"price\" : [ format_decimal [ expr $sem(reduced_price) / 100.0 ] ],\n"
+      append out "     \"start\" : \"[ minutes_to_time $sem(reduced_start) ]\",\n"
+      append out "     \"end\" : \"[ minutes_to_time $sem(reduced_end) ]\"\n"
+      append out "   \}\n"
+
+    } else {
+
+      append out "   \"reduced\" : null\n"
+
+    }
+
+    append out "  \}"
+
+  } else {
+
+    return "  \"settings\" : null"
+
+  }
+
+}
+
+
+
+
+proc json_schedulers {} {
+
+  global sem
+
+  if { $sem(schedulers) <= 0 } {
+    return "  \"schedulers\" : null"
+  } 
+
+  append out "  \"schedulers\" : \["
+
+  for { set i 0 } { $i < $sem(schedulers) } { incr i } {
+
+    append out "  \{\n"
+    append out "    \"slot\" : $sem("scheduler_slot_$i"),\n"
+    append out "    \"active\" : $sem("scheduler_active_$i"),\n"
+    append out "    \"action\" : $sem("scheduler_action_$i"),\n"
+    append out "    \"date\" : \"$sem("scheduler_date_$i")\",\n"
+    append out "    \"time\" : \"$sem("scheduler_time_$i")\",\n"
+    append out "    \"days\" : \"$sem("scheduler_daymask_$i")\"\n"
+
+    if { $i < [ expr $sem(schedulers) - 1 ] } {
+      append out "  \},\n"
+    } else {
+      append out "  \}\n"
+    }
+
+  }
+  append out "]"
+
+  return $out  
+  
+}
 
 
 
