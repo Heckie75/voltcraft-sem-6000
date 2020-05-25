@@ -107,6 +107,11 @@ set HELP(data) "\
   --data reset                       - reset measured power consumption\n\
   --data header                      - print header line for measurements or data"
 
+set HELP(standby) "\
+  --standby <watts>                  - turn off device if consumption is less than given watts\n\
+\                                     watts - low-water-mark, max. 3680, e.g. 2.6 for 2.6W"
+
+
 set HELP(settings) "\
   --settings                         - request settings from device, i.e. overload, led, price"
 
@@ -241,6 +246,7 @@ proc help { argv } {
     puts stderr "$HELP(on)"
     puts stderr "$HELP(off)"
     puts stderr "$HELP(toggle)"
+    puts stderr "$HELP(standby)\n"
     puts stderr "\nScheduler commands:\n"
     puts stderr "$HELP(scheduler)"
     puts stderr "\nCountdown commands:\n"
@@ -2754,6 +2760,25 @@ proc do_command { command } {
       capture_measurement
       req_switch [ expr $sem(power) == 0 ? 1 : 0 ]
 
+    }
+    ^standby.*$ {
+      check_command $command 1 "standby" {^standby [1-3]?[0-9]{1,3}(\.[0-9])?$}
+
+      set limit [ lindex $command 1 ]
+      if { $limit < 0.1 } {
+
+        set limit 0.1
+
+      } elseif { $limit > 3680 } {
+
+        set limit 3680
+      }
+
+      init $INIT(auth)
+      capture_measurement
+      if { $sem(power) == 1 && $sem(watt) <= $limit } {
+        req_switch 0
+      }
     }
     ^measure\ header$ {
 

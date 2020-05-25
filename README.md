@@ -96,7 +96,8 @@ Basic commands:
  --on                               - turn on smart energy meter
  --off                              - turn off smart energy meter
  --toggle                           - toggle smart energy meter
-
+ --standby <watts>                  - turn off device if consumption is less than given watts
+                                      watts - low-water-mark, max. 3680, e.g. 2.6 for 2.6W
 Scheduler commands:
 
  --scheduler <on|off> <hh:mm|+mm> [<smtwtfs>] [<YYYY-MM-DD>]
@@ -158,6 +159,7 @@ Device settings:
 Other commands:
 
  --print                            - print gathered information
+ --json                             - print some gathered information in JSON format 
  --dump                             - request all information from device
  --sleep <n>                        - pause processing for n seconds
  --verbose                          - print information about processing
