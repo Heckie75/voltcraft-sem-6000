@@ -201,7 +201,9 @@ set sem(ampere)                -1
 set sem(frequency)             -1
 set sem(power_factor)          -1
 set sem(total)                 -1
-set sem(month)                 -1
+set sem(total_day)             -1
+set sem(total_month)           -1
+set sem(total_year)            -1
 
 set sem(led)                   -1
 set sem(over_power)            -1
@@ -361,14 +363,23 @@ proc print_measurement {} {
   }
 
   append out "\tStatus:\n"
-  append out "\t  Power:             [ expr $sem(power) == 1 ? "on" : "off" ]\n"
-  append out "\t  Voltage:           $sem(voltage) VAC\n"
-  append out "\t  Ampere:            $sem(ampere) A\n"
-  append out "\t  Watts:             $sem(watt) W\n"
-  append out "\t  Frequency:         $sem(frequency) Hz\n"
-  append out "\t  Power factor:      $sem(power_factor)\n"
-  append out "\t  Total consumption: $sem(total) kWh\n"
+  append out "\t  Power:                [ expr $sem(power) == 1 ? "on" : "off" ]\n"
+  append out "\t  Voltage:              $sem(voltage) VAC\n"
+  append out "\t  Ampere:               $sem(ampere) A\n"
+  append out "\t  Watts:                $sem(watt) W\n"
+  append out "\t  Frequency:            $sem(frequency) Hz\n"
+  append out "\t  Power factor:         $sem(power_factor)\n"
+  append out "\t  Total consumption:    $sem(total) kWh\n"
 
+  if { $sem(total_day) != -1} {
+    append out "\t  Total last 24h:       $sem(total_day) Wh\n"
+  }
+  if { $sem(total_month) != -1} {
+    append out "\t  Total last 31 days:   $sem(total_month) Wh\n"
+  }
+  if { $sem(total_year) != -1} {
+    append out "\t  Total last 12 months: $sem(total_year) Wh\n"
+  }
 
   append out "\n"
 
@@ -612,6 +623,17 @@ proc json_measurement {} {
   append out "    \"watts\" : $sem(watt),\n"
   append out "    \"frequency\" : $sem(frequency),\n"
   append out "    \"power_factor\" : $sem(power_factor),\n"
+
+  if { $sem(total_day) != -1} {
+    append out "    \"total_day\" : $sem(total_day),\n"
+  }
+  if { $sem(total_month) != -1} {
+    append out "    \"total_month\" : $sem(total_month),\n"
+  }
+  if { $sem(total_year) != -1} {
+    append out "    \"total_year\" : $sem(total_year),\n"
+  }
+
   append out "    \"total\" : $sem(total)\n"
   append out "  \}"
 
@@ -786,6 +808,24 @@ proc json_data { _obj _data } {
   append out "  \]"
 
   return $out
+
+}
+
+
+
+
+proc get_total_from_data { _data } {
+
+  array set data $_data
+  set total 0
+
+  foreach d [ array names data ] {
+
+    set total [ expr $total + $data($d) ]
+
+  }
+
+  return $total
 
 }
 
@@ -2727,6 +2767,10 @@ proc do_command { command } {
   global verbose
   global CMD
 
+  global data_per_hour
+  global data_per_day
+  global data_per_month
+
   switch -regexp $command {
 
     ^sync$ {
@@ -3005,13 +3049,19 @@ proc do_command { command } {
 
         req_data $CMD(DATA_DAY)
 
+        set sem(total_day) [ get_total_from_data [ array get data_per_hour ] ]
+
       } elseif { [ lindex $command 1 ] == "month" } {
 
         req_data $CMD(DATA_MONTH)
 
+        set sem(total_month) [ get_total_from_data [ array get data_per_day ] ]
+
       } elseif { [ lindex $command 1 ] == "year" } {
 
         req_data $CMD(DATA_YEAR)
+
+        set sem(total_year) [ get_total_from_data [ array get data_per_month ] ]
 
       }
 
