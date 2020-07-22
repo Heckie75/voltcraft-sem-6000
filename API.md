@@ -341,7 +341,7 @@ If there are more than 1 schedulers set then there are multiple notifications.
 # notification #1
 Notification handle = 0x2e value: 0f 28 14 00 03 0a 01 01 01 13 07 0d 0b 2c 00 00 75 0b 01 00
                                   |  |  |     |  |  |  |  |  |  |  |  |  |  |     + Checksum of scheduler?
-                                  |  |  |     |  |  |  |  |  |  |  |  |  |  + static, 0x0000
+                                  |  |  |     |  |  |  |  |  |  |  |  |  |  y$+ static, 0x0000
                                   |  |  |     |  |  |  |  |  |  |  |  |  + Minute
                                   |  |  |     |  |  |  |  |  |  |  |  + Hour
                                   |  |  |     |  |  |  |  |  |  |  + day in month
@@ -390,6 +390,15 @@ char-write-req 2b 0f0f1300010001010113070e0e1a000068ffff
                   | | + Set timer command, 0x1300
                   | + Length of payload starting w/ next byte incl. checksum
                   + Static start sequence for message, 0x0f
+
+Notification handle = 0x2b value: 0f 06 13 00 01 00 00 15 ff ff
+                                  |  |  |     |  |     |  + Static end sequence of message, 0xff
+                                  |  |  |     |  |     + Checksum byte starting with length-byte, ending w/ byte before
+                                  |  |  |     |  + Static 0x0000
+                                  |  |  |     + 0 = success, 1 = unsuccess
+                                  |  |  + Set timer command, 0x1300
+                                  |  + Length of payload starting w/ next byte incl. checksum
+                                  + Static start sequence for message, 0x0f
 ```
 
 ## Reset scheduler
