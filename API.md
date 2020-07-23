@@ -304,7 +304,7 @@ char-write-req 2b 0f06140000000015ffff
                   | | |   |     | + static end sequence of message, 0xffff
                   | | |   |     + checksum byte starting with length-byte, ending w/ byte before
                   | | |   + Page if more than 4 schedulers, 0 = 1st page , 1 = 2nd page
-                  | | + Set timer command, 0x1400
+                  | | + Request schedulers command, 0x1400
                   | + Length of payload starting w/ next byte incl. checksum
                   + static start sequence for message, 0x0f
 
@@ -331,7 +331,7 @@ Notification handle = 0x2e value: 0f 10 14 00 01 0c 01 01 00 13 08 09 0a 0b 00 0
                                   |  |  |     |  |  + Active, 0 = inactive, 1 = active
                                   |  |  |     |  + Slot ID
                                   |  |  |     + Number of active schedulers, here 1 
-                                  |  |  + Request scheduler status command, 0x1400
+                                  |  |  + Request schedulers command, 0x1400
                                   |  + Length of payload starting w/ next byte incl. checksum
                                   + static start sequence for message, 0x0f
 ```
@@ -352,7 +352,7 @@ Notification handle = 0x2e value: 0f 28 14 00 03 0a 01 01 01 13 07 0d 0b 2c 00 0
                                   |  |  |     |  |  + Active, 0 = inactive, 1 = active
                                   |  |  |     |  + Slot ID, starting with 10, 0x0a=0, 0x0b=1, 0x0c=2
                                   |  |  |     + Number of active schedulers, here 3
-                                  |  |  + Request scheduler status command, 0x1400
+                                  |  |  + Request schedulers command, 0x1400
                                   |  + Length of payload starting w/ next byte incl. checksum
                                   + static start sequence for message, 0x0f
 
@@ -387,7 +387,7 @@ char-write-req 2b 0f0f1300010001010113070e0e1a000068ffff
                   | | |   | | + State , 1 = active, 0 = inactive
                   | | |   | + If edit / remote scheduler then ID of slot else 0x00
                   | | |   + 0 = add new scheduler, 1 = edit existing scheduler, 2 = remove scheduler
-                  | | + Set timer command, 0x1300
+                  | | + Set scheduler command, 0x1300
                   | + Length of payload starting w/ next byte incl. checksum
                   + Static start sequence for message, 0x0f
 
@@ -396,7 +396,7 @@ Notification handle = 0x2b value: 0f 06 13 00 01 00 00 15 ff ff
                                   |  |  |     |  |     + Checksum byte starting with length-byte, ending w/ byte before
                                   |  |  |     |  + Static 0x0000
                                   |  |  |     + 0 = success, 1 = unsuccess
-                                  |  |  + Set timer command, 0x1300
+                                  |  |  + Set scheduler command, 0x1300
                                   |  + Length of payload starting w/ next byte incl. checksum
                                   + Static start sequence for message, 0x0f
 ```
@@ -423,7 +423,7 @@ Notification handle = 0x2b value: 0f 0b 16 00 01 55 02 03 04 05 00 00 7b ff ff
                                   |  |  |     |  |  + Start hour
                                   |  |  |     |  + Weekday mask, bit 1 = Sunday, bit 2 = Monday, etc.
                                   |  |  |     + Randommode status, 1 = on, 0 = off
-                                  |  |  + Request scheduler status command, 0x1600
+                                  |  |  + Request random mode status command, 0x1600
                                   |  + Length of payload starting w/ next byte incl. checksum
                                   + static start sequence for message, 0x0f
 ```
@@ -525,7 +525,7 @@ Notification handle = 0x002e value: 0f 7b 0b 00 00 00 00 00 00 00 00 00 00 00 00
                                     |  |  |     |           |           + Today - 27, 3 bytes for Wh
                                     |  |  |     |           + Today - 28, 3 bytes for Wh
                                     |  |  |     + Today - 29, 3 bytes for Wh
-                                    |  |  + 0x0c00, Request data for month request
+                                    |  |  + 0x0b00, Request data for month request
                                     |  + Length of payload starting w/ next byte incl. checksum
                                     + static start sequence for message, 0x0f
 
@@ -553,7 +553,7 @@ Notification handle = 0x002e value: 0f 33 0a 00 00 0e 00 0e 00 0e 00 0e 00 0c 00
                                     |  |  |     |     |     + Current hour - 21, 2 bytes for Wh
                                     |  |  |     |     + Current hout - 22, 3 bytes for Wh
                                     |  |  |     + Current hour - 23, 2 bytes for Wh
-                                    |  |  + 0x0c00, Request data for month request
+                                    |  |  + 0x0a00, Request data for day request
                                     |  + Length of payload starting w/ next byte incl. checksum
                                     + static start sequence for message, 0x0f
 
