@@ -341,7 +341,7 @@ If there are more than 1 schedulers set then there are multiple notifications.
 # notification #1
 Notification handle = 0x2e value: 0f 28 14 00 03 0a 01 01 01 13 07 0d 0b 2c 00 00 75 0b 01 00
                                   |  |  |     |  |  |  |  |  |  |  |  |  |  |     + Checksum of scheduler?
-                                  |  |  |     |  |  |  |  |  |  |  |  |  |  y$+ static, 0x0000
+                                  |  |  |     |  |  |  |  |  |  |  |  |  |  + static, 0x0000
                                   |  |  |     |  |  |  |  |  |  |  |  |  + Minute
                                   |  |  |     |  |  |  |  |  |  |  |  + Hour
                                   |  |  |     |  |  |  |  |  |  |  + day in month
