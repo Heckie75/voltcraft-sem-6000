@@ -2,11 +2,11 @@
 #
 # Shell script in order to control Voltcraft SEM 6000
 #
-# Version: 2019-06-23
+# Version: 2021-10-16
 #
 # MIT License
 #
-# Copyright (c) 2019 heckie75
+# Copyright (c) 2019-2021 heckie75
 #
 # Permission is hereby granted, free of charge, to any person obtaining
 # a copy of this software and associated documentation files
@@ -104,7 +104,7 @@ set HELP(measure) "\
 
 set HELP(data) "\
   --data <day|month|year>            - request measured power consumption from enery meter\n\
-  --data reset                       - reset measured power consumption\n\
+  --data reset                       - reset all data of measured power consumption\n\
   --data header                      - print header line for measurements or data"
 
 set HELP(standby) "\
@@ -124,7 +124,14 @@ set HELP(overload) "\
 
 set HELP(price) "\
   --price <normal price> \[<reduced price> <hh:mm> <hh:mm>]\n\
-\                                   - set price and optionally a reduced price with start and end time"
+\                                   - set price and optionally a reduced price with start and end time\n\
+\                                     Note: You can either use reduced price mode or statistics but not both"
+
+set HELP(statistics) "\
+  --statistics reset                 - reset all captured data and set starting time to now\n\
+\                                     Note: You can either use reduced price mode or statistics but not both\n\
+  --statistics set <mm-dd hh:mm>     - set starting time for statistics explicitly\n\
+  --statistics                       - capture and calculate statistics, i.e. average and projections consumption"
 
 set HELP(name) "\
   --name <name>                      - give smart meter a new name, max. 18 characters"
@@ -168,6 +175,7 @@ set INIT(device)               32
 set INIT(countdown)            64
 set INIT(scheduler)            128
 set INIT(randommode)           256
+set INIT(statistics)           512
 
 set HANDLE(req)                43
 set HANDLE(notification)       46
@@ -216,6 +224,12 @@ set sem(reduced_price)         -1
 set sem(countdown)             -1
 set sem(schedulers)            -1
 set sem(randommode)            -1
+
+set sem(statistics_start)      ""
+set sem(statistics_runtime)    -1
+set sem(avg_consumption)       -1
+set sem(projected_consumption) -1
+set sem(projected_price)       -1
 
 array set data_per_hour        {}
 array set data_per_day         {}
@@ -267,6 +281,8 @@ proc help { argv } {
     puts stderr "$HELP(overload)\n"
     puts stderr "$HELP(price)"
     puts stderr "$HELP(reset)"
+    puts stderr "\nStatistics:\n"
+    puts stderr "$HELP(statistics)"
     puts stderr "\nOther commands:\n"
     puts stderr "$HELP(print)"
     puts stderr "$HELP(json)"
@@ -295,11 +311,12 @@ proc print_sem {} {
 
   set out ""
   append out [ print_device ]
-  append out [ print_measurement ]
   append out [ print_settings ]
   append out [ print_schedulers ]
   append out [ print_countdown ]
   append out [ print_randommode ]
+  append out [ print_measurement ]
+  append out [ print_statistics ]
   append out $sem(header_data)
   append out [ print_data [ array get data_per_hour ] ]
   append out [ print_data [ array get data_per_day ] ]
@@ -320,11 +337,12 @@ proc print_device {} {
 
   if { ( $sem(init) & $INIT(device) ) == $INIT(device) } {
 
-    append out "\tMac:                 $sem(mac)\n"
-    append out "\tDevice PIN:          $sem(pin)\n"
-    append out "\tName:                $sem(name)\n"
-    append out "\tSerial:              $sem(serial)\n"
-    append out "\tAlias:               $sem(alias)\n"
+    append out "Device:\n"
+    append out "  Mac:                  $sem(mac)\n"
+    append out "  Device PIN:           $sem(pin)\n"
+    append out "  Name:                 $sem(name)\n"
+    append out "  Serial:               $sem(serial)\n"
+    append out "  Alias:                $sem(alias)\n"
     append out "\n"
 
   }
@@ -362,23 +380,23 @@ proc print_measurement {} {
     return ""
   }
 
-  append out "\tStatus:\n"
-  append out "\t  Power:                [ expr $sem(power) == 1 ? "on" : "off" ]\n"
-  append out "\t  Voltage:              $sem(voltage) VAC\n"
-  append out "\t  Ampere:               $sem(ampere) A\n"
-  append out "\t  Watts:                $sem(watt) W\n"
-  append out "\t  Frequency:            $sem(frequency) Hz\n"
-  append out "\t  Power factor:         $sem(power_factor)\n"
-  append out "\t  Total consumption:    $sem(total) kWh\n"
+  append out "Status:\n"
+  append out "  Power:                [ expr $sem(power) == 1 ? "on" : "off" ]\n"
+  append out "  Voltage:              $sem(voltage) VAC\n"
+  append out "  Ampere:               $sem(ampere) A\n"
+  append out "  Watts:                $sem(watt) W\n"
+  append out "  Frequency:            $sem(frequency) Hz\n"
+  append out "  Power factor:         $sem(power_factor)\n"
+  append out "  Total consumption:    $sem(total) kWh\n"
 
   if { $sem(total_day) != -1} {
-    append out "\t  Total last 24h:       $sem(total_day) Wh\n"
+    append out "  Total last 24h:       [expr $sem(total_day) / 1000.0 ] kWh\n"
   }
   if { $sem(total_month) != -1} {
-    append out "\t  Total last 31 days:   $sem(total_month) Wh\n"
+    append out "  Total last 31 days:   [expr $sem(total_month) / 1000.0 ] kWh\n"
   }
   if { $sem(total_year) != -1} {
-    append out "\t  Total last 12 months: $sem(total_year) Wh\n"
+    append out "  Total last 12 months: [expr $sem(total_year) / 1000.0 ] kWh\n"
   }
 
   append out "\n"
@@ -408,13 +426,34 @@ proc print_data { _data } {
 
 
 
+proc print_statistics {} {
+
+  global INIT
+  global sem
+
+  if { ( $sem(init) & $INIT(statistics) ) != $INIT(statistics) } {
+    return ""
+  }
+
+  append out "Statistics:\n"
+  append out "  Log statistics since:  $sem(statistics_start)\n"
+  append out "  Runtime:               [seconds_to_time_w_days $sem(statistics_runtime)]\n"
+  append out "  Current consumption:   [expr $sem(total_year) / 1000.0 ] kWh\n"
+  append out "  Avg. consumption:      $sem(avg_consumption) Wh\n"
+  append out "  Projected consumption: [expr $sem(projected_consumption) / 1000.0 ] kWh per year\n"
+  append out "  Projected price:       $sem(projected_price) $ per year\n\n"
+}
+
+
+
+
 proc print_measurement_as_csv {} {
 
   global sem
 
   append out [ current_datetime_str ]
-  append out "\t$sem(power)\t$sem(voltage)\t$sem(ampere)"
-  append out "\t$sem(watt)\t$sem(frequency)\t$sem(power_factor)"
+  append out "$sem(power)\t$sem(voltage)\t$sem(ampere)"
+  append out "$sem(watt)\t$sem(frequency)\t$sem(power_factor)"
 
   return $out
 
@@ -432,21 +471,21 @@ proc print_settings {} {
 
   if { ( $sem(init) & $INIT(settings) ) == $INIT(settings) } {
 
-    append out "\tLED ring:            [ expr $sem(led) == 1 ? "on" : "off" ]\n"
-    append out "\tOverload limit:      $sem(over_power) W\n"
+    append out "Settings:\n"
+    append out "  LED ring:             [ expr $sem(led) == 1 ? "on" : "off" ]\n"
+    append out "  Overload limit:       $sem(over_power) W\n"
     append out "\n"
-    append out "\tPrice:               [ format_decimal [ expr $sem(normal_price) / 100.0 ] ]\n"
+    append out "  Price:                [ format_decimal [ expr $sem(normal_price) / 100.0 ] ] $ per kWh\n"
     append out "\n"
-    append out "\tReduced mode:        [ expr $sem(reduced_mode) == 1 ? "on" : "off" ]\n"
+    append out "  Reduced mode:         [ expr $sem(reduced_mode) == 1 ? "on" : "off" ]\n"
 
     if { $sem(reduced_mode) == 1 } {
 
-      append out "\tReduced price:       [ format_decimal [ expr $sem(reduced_price) / 100.0 ] ]\n"
-      append out "\tReduced start:       [ minutes_to_time $sem(reduced_start) ]\n"
-      append out "\tReduced end:         [ minutes_to_time $sem(reduced_end) ]\n"
-      append out "\n"
-
+      append out "  Reduced price:        [ format_decimal [ expr $sem(reduced_price) / 100.0 ] ]\n"
+      append out "  Reduced start:        [ minutes_to_time $sem(reduced_start) ]\n"
+      append out "  Reduced end:          [ minutes_to_time $sem(reduced_end) ]\n"
     }
+    append out "\n"
 
   }
 
@@ -471,18 +510,18 @@ proc print_countdown {} {
     set remain [ clock format [ expr $sem(countdown_schedule) - [ clock seconds ] + [ time_offset ] ] -format "%H:%M:%S" -timezone :GMT ]
     set remain "[ expr ( $sem(countdown_schedule) - [ clock seconds ] + [ time_offset ] ) / 86400 ] days, $remain"
 
-    append out "\tCountdown:            on\n"
-    append out "\t  Action:             [ expr $sem(countdown) == 1 ? "on" : "off" ]\n"
-    append out "\t  Started at:         [ datetime_str $sem(countdown_origin) ]\n"
-    append out "\t  ETA:                [ datetime_str $sem(countdown_schedule) ]\n"
-    append out "\t  Runtime:            $runtime\n"
-    append out "\t  Remaining:          $remain\n"
+    append out "Countdown:               on\n"
+    append out "  Action:                [ expr $sem(countdown) == 1 ? "on" : "off" ]\n"
+    append out "  Started at:            [ datetime_str $sem(countdown_origin) ]\n"
+    append out "  ETA:                   [ datetime_str $sem(countdown_schedule) ]\n"
+    append out "  Runtime:               $runtime\n"
+    append out "  Remaining:             $remain\n"
 
     append out "\n"
 
   } elseif { $sem(countdown) == 0 } {
 
-     append out "\tCountdown:           off\n"
+     append out "Countdown:              off\n"
 
   }
 
@@ -501,19 +540,19 @@ proc print_schedulers {} {
 
   if {$sem(schedulers) >= 0 } {
 
-    append out "\tSchedulers:          $sem(schedulers)\n\n"
+    append out "Schedulers:             $sem(schedulers)\n\n"
 
   }
 
   for { set i 0 } { $i < $sem(schedulers) } { incr i } {
 
-    append out "\tScheduler [ expr $i + 1 ]:\n"
-    append out "\t  Slot:              $sem("scheduler_slot_$i")\n"
-    append out "\t  Active:            [ expr $sem("scheduler_active_$i") == 1 ? "yes" : "no" ]\n"
-    append out "\t  Action:            turn [ expr $sem("scheduler_action_$i") == 1 ? "on" : "off" ]\n"
-    append out "\t  Date:              $sem("scheduler_date_$i")\n"
-    append out "\t  Time:              $sem("scheduler_time_$i")\n"
-    append out "\t  Weekdays:          $sem("scheduler_daymask_$i")\n"
+    append out "Scheduler [ expr $i + 1 ]:\n"
+    append out "  Slot:              $sem("scheduler_slot_$i")\n"
+    append out "  Active:            [ expr $sem("scheduler_active_$i") == 1 ? "yes" : "no" ]\n"
+    append out "  Action:            turn [ expr $sem("scheduler_action_$i") == 1 ? "on" : "off" ]\n"
+    append out "  Date:              $sem("scheduler_date_$i")\n"
+    append out "  Time:              $sem("scheduler_time_$i")\n"
+    append out "  Weekdays:          $sem("scheduler_daymask_$i")\n"
     append out "\n"
 
   }
@@ -533,15 +572,15 @@ proc print_randommode {} {
 
   if { $sem(randommode) > 0 } {
 
-    append out "\tRandommode:           on\n"
-    append out "\t  Weekdays:           $sem(randommode_daymask)\n"
-    append out "\t  Start time:         $sem(randommode_start)\n"
-    append out "\t  End time:           $sem(randommode_end)\n"
+    append out "Randommode:              on\n"
+    append out "  Weekdays:              $sem(randommode_daymask)\n"
+    append out "  Start time:            $sem(randommode_start)\n"
+    append out "  End time:              $sem(randommode_end)\n"
     append out "\n"
 
   } elseif { $sem(randommode) == 0 } {
 
-     append out "\tRandommode:          off\n"
+     append out "Randommode:             off\n"
 
   }
 
@@ -561,14 +600,15 @@ proc json_sem {} {
 
   set out "{\n"
   append out "[ json_device ],\n"
-  append out "[ json_measurement ],\n"
   append out "[ json_settings ],\n"
   append out "[ json_schedulers ],\n"
   append out "[ json_countdown ],\n"
   append out "[ json_randommode ],\n"
+  append out "[ json_measurement ],\n"
   append out "[ json_data "data_per_hour" [ array get data_per_hour ] ],\n"
   append out "[ json_data "data_per_day" [ array get data_per_day ] ],\n"
-  append out "[ json_data "data_per_month" [ array get data_per_month ] ]\n"
+  append out "[ json_data "data_per_month" [ array get data_per_month ] ],\n"
+  append out "[ json_statistics ]\n"
   append out "}"
   puts $out
 
@@ -814,6 +854,33 @@ proc json_data { _obj _data } {
 
 
 
+proc json_statistics {} {
+
+  global sem
+  global INIT
+
+  if { ( $sem(init) & $INIT(statistics) ) == $INIT(statistics) } {
+
+    append out "  \"statistics\" : \{\n"
+    append out "   \"start\" : \"$sem(statistics_start)\",\n"
+    append out "   \"runtime\" : $sem(statistics_runtime),\n"
+    append out "   \"total\" : $sem(total_year),\n"
+    append out "   \"avg\" : $sem(avg_consumption),\n"
+    append out "   \"projected_consumption\" : $sem(projected_consumption),\n"
+    append out "   \"projected_price\" : $sem(projected_price)\n"
+    append out "  \}"
+
+  } else {
+
+    return "  \"statistics\" : null"
+
+  }
+
+}
+
+
+
+
 proc get_total_from_data { _data } {
 
   array set data $_data
@@ -988,6 +1055,19 @@ proc minutes_to_time { m } {
 
   set time [clock format [expr 60 * $m] -format %H:%M -timezone :GMT ]
   return $time
+
+}
+
+
+
+
+proc seconds_to_time_w_days { s } {
+
+  set days [expr $s / 86400]
+  set s [expr $s % 86400]
+
+  set time [clock format [expr $s] -format %H:%M -timezone :GMT ]
+  return "$days days, $time"
 
 }
 
@@ -1438,9 +1518,17 @@ proc init { level } {
 
   if { ( $level & $INIT(randommode) ) == $INIT(randommode) && ( $sem(init) & $INIT(randommode) ) != $INIT(randommode) } {
 
-    # request schedulers
+    # request randommode
     req_randommode
     set sem(init) [ expr $sem(init) | $INIT(randommode) ]
+
+  }
+
+  if { ( $level & $INIT(statistics) ) == $INIT(statistics) && ( $sem(init) & $INIT(statistics) ) != $INIT(statistics) } {
+
+    # request statistics
+    req_statistics
+    set sem(init) [ expr $sem(init) | $INIT(statistics) ]
 
   }
 
@@ -2753,7 +2841,73 @@ proc set_reduced_mode { mode start end } {
 
   }
 
+}
 
+
+
+
+proc set_statistics_start_time {_date _time} {
+
+  log "INFO:\tSet statistics start time as reduced time period"
+
+  if { $_date == "" || $_time == ""} {
+    set datetime [ current_datetime ]
+  } else {
+    set datetime "0 [split $_date "-"] [split $_time ":"]"
+  }
+
+  set date "[ with_leading_zeros [ lindex $datetime 1 ] 2 ]:[ with_leading_zeros [ lindex $datetime 2 ] 2 ]"
+  set time "[ with_leading_zeros [ lindex $datetime 3 ] 2 ]:[ with_leading_zeros [ lindex $datetime 4 ] 2 ]"
+
+  set_reduced_mode 0 $date $time
+
+}
+
+
+
+
+proc req_statistics {} {
+
+  global INIT
+  global CMD
+  global sem
+  global data_per_month
+
+  set start_month [with_leading_zeros [expr $sem(reduced_start) / 60] 2]
+  set start_day [with_leading_zeros [expr $sem(reduced_start) % 60] 2]
+  set start_year [ clock format [ clock seconds ] -format "%Y" ]
+
+  if {$sem(reduced_mode) == 1 || $start_day < 1 || $start_day > 31 || $start_month < 1 || $start_month > 12} {
+    return
+  }
+
+  set _now [expr [clock seconds] - [clock seconds] % 60]
+  set _s "$start_year-$start_month-$start_day [ minutes_to_time $sem(reduced_end) ]"
+  set _start [clock scan $_s -format "%Y-%m-%d %H:%M"]
+
+  if { $_now < $_start} {
+    set _start [expr $_start - (86400 * 365) ]
+  }
+
+  set runtime [expr ($_now - $_start)]
+
+  if { $runtime > 0 } {
+
+    set sem(statistics_runtime) $runtime
+
+    capture_measurement
+
+    req_data $CMD(DATA_YEAR)
+    set sem(total_year) [ get_total_from_data [ array get data_per_month ] ]
+
+    set sem(statistics_start) [clock format $_start -format "%Y-%m-%d %H:%M"]
+
+    set sem(avg_consumption) [expr round(100 * $sem(total_year) / (1.0 * $runtime) * 3600) / 100.0]
+    set sem(projected_consumption) [expr round($sem(avg_consumption) * 24 * 365)]
+    set sem(projected_price) [expr round($sem(projected_consumption) / 1000.0 * $sem(normal_price)) / 100.0 ]
+
+    set sem(init) [ expr $sem(init) | $INIT(statistics) ]
+  }
 
 }
 
@@ -3072,22 +3226,20 @@ proc do_command { command } {
 
       set price [ lindex $command 1 ]
       set reduced_price $price
-      set reduced_start "00:00"
-      set reduced_end "00:00"
-      set reduced_mode 0
+
+      init [ expr $INIT(auth) ]
+      set_price $price $reduced_price
 
       if { [ llength $command ] > 2 } {
         set reduced_price [ lindex $command 2 ]
         set reduced_start [ lindex $command 3 ]
         set reduced_end [ lindex $command 4 ]
         set reduced_mode 1
+        set_reduced_mode $reduced_mode $reduced_start $reduced_end
+      } else {
+        req_settings
+        set_reduced_mode 0 [ minutes_to_time $sem(reduced_start) ] [ minutes_to_time $sem(reduced_end) ]
       }
-
-      init [ expr $INIT(auth) ]
-
-      set_price $price $reduced_price
-      set_reduced_mode $reduced_mode $reduced_start $reduced_end
-
     }
     ^overload.*$ {
 
@@ -3145,9 +3297,33 @@ proc do_command { command } {
       req_reset $CMD(RESET_ALL)
 
     }
+    ^statistics$ {
+
+        init [ expr $INIT(auth) | $INIT(settings) ]
+        req_statistics
+
+    }
+    ^statistics.*$ {
+
+      check_command $command 1 "statistics" {^statistics (reset|set [01][0-9]-[0-3][0-9] [0-2][0-9]:[0-5][0-9])$}
+
+      if { [ lindex $command 1 ] == "reset" } {
+
+        init $INIT(auth)
+
+        req_reset $CMD(RESET_DATA)
+        set_statistics_start_time "" ""
+
+      } elseif { [ lindex $command 1 ] == "set" } {
+
+        init $INIT(auth)
+        set_statistics_start_time [ lindex $command 2 ] [ lindex $command 3 ]
+
+      }
+    }
     ^dump$ {
 
-      init 65535
+      init [expr (1 << 17) - 1]
       capture_measurement
 
     }

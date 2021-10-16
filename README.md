@@ -1,21 +1,19 @@
 # voltcraft-sem-6000
-_"A full-features shell script in order to manage bluetooth switch, scheduler and smart energy meter Voltcraft SEM 6000 with Linux and Raspberry Pi"_
+_"A full-featured shell script in order to manage Bluetooth switch, scheduler and smart energy meter Voltcraft SEM 6000 with Linux and Raspberry Pi"_
 
 The Voltcraft SEM-6000 is a remote 230V switch and smart energy meter. It was sold by *Conrad Elektronik* in Germany. 
 
 
 For details take a look at [Conrad](https://www.conrad.de/de/p/voltcraft-sem6000-energiekosten-messgeraet-bluetooth-schnittstelle-datenexport-datenloggerfunktion-trms-stromtarif-e-1558906.html). The device is also known as _Smart Power Plug EU_ by Revogi, see https://www.revogi.com/smart-power/power-plug-eu/#section0
 
-In comparison to many remote switches which use the 433MHz band the SEM-6000 is based on bluetooth v4.0. The advantage is that there is no need to have additional hardware, e.g. via GPIO connected sender/receiver. 
+In comparison to many remote switches which use the 433MHz band the SEM-6000 is based on Bluetooth v4.0. The advantage is that there is no need to have additional hardware, e.g. via GPIO connected sender/receiver. 
 
 Voltcraft SEM-6000  has the following features:
 * 12 schedulers which can run once or assigned to weekdays
 * Countdown mode in order to switch power _on_ or _off_ after a certain period 
 * Configurable overload-mode in order to auto-turn-off or alarm in case of power overload
-* Energy meter in order to measure volt, ampere and watts in realtime
+* Energy meter in order to measure volt, ampere and watts in real-time
 * Energy meter recorder in order to measure power consumption over long period
-
-For official manual by Voltcraft visit [Conrad](https://produktinfo.conrad.com/datenblaetter/1500000-1599999/001558906-an-01-en-APP_VOLTCRAFT_SEM6000_BLUETOOTH_EKM.pdf)
 
 ## Getting started
 ### 1. Check pre-conditions
@@ -50,7 +48,7 @@ There is no need to pair device.
 
 
 ### 4. Aliases
-For convenience reasons I recommend to use aliases. Instead of entering the bluetooth mac address each time you want to run the script, you can call the script by using meaningful names.
+For convenience reasons I recommend using aliases. Instead of entering the Bluetooth mac address each time you want to run the script, you can call the script by using meaningful names.
 
 The script tries to read a file called `.known_sem6` which must be located in your home folder. It is a text file with three columns:
 
@@ -82,7 +80,7 @@ $ ./sem-6000.exp f --sync
 
 ## Getting help
 
-In order to get an overview of the full feature set enter the following:
+To get an overview of the full feature set enter the following:
 ```
 $ ./sem-6000.exp fr --help
 Usage: <mac/alias> <pin> --<command1> <parameters...> --<command2>
@@ -97,7 +95,9 @@ Basic commands:
  --off                              - turn off smart energy meter
  --toggle                           - toggle smart energy meter
  --standby <watts>                  - turn off device if consumption is less than given watts
-                                      watts - low-water-mark, max. 3680, e.g. 2.6 for 2.6W
+                                      watts - low-water-mark, max. 3680, e.g. 2.654 for 2.654W
+
+
 Scheduler commands:
 
  --scheduler <on|off> <hh:mm|+mm> [<smtwtfs>] [<YYYY-MM-DD>]
@@ -134,7 +134,7 @@ Measurement commands:
  --measure [<s>]                    - take measurements, optional duration in seconds (use 0 for single), otherwise forever
 
  --data <day|month|year>            - request measured power consumption from enery meter
- --data reset                       - reset measured power consumption
+ --data reset                       - reset all data of measured power consumption
  --data header                      - print header line for measurements or data
 
 Device commands:
@@ -154,12 +154,20 @@ Device settings:
 
  --price <normal price> [<reduced price> <hh:mm> <hh:mm>]
                                     - set price and optionally a reduced price with start and end time
+                                      Note: You can either use reduced price mode or statistics but not both
  --reset                            - factory reset
+
+Statistics:
+
+ --statistics reset                 - reset all captured data and set starting time to now
+                                      Note: You can either use reduced price mode or statistics but not both
+ --statistics set <mm-dd hh:mm>     - set starting time for statistics explicitly
+ --statistics                       - capture and calculate statistics, i.e. average and projections consumption
 
 Other commands:
 
  --print                            - print gathered information
- --json                             - print some gathered information in JSON format 
+ --json                             - print some gathered information in JSON format
  --dump                             - request all information from device
  --sleep <n>                        - pause processing for n seconds
  --verbose                          - print information about processing
@@ -182,7 +190,7 @@ Usage: <mac/alias> <pin> --<command1> <parameters...> --<command2>
 
 ## PIN
 
-The smart meter is protected by a 4 digit pin. The default pin is 0000. 
+The smart meter is protected by a 4-digit pin. The default pin is 0000. 
 
 You can change the pin by using the pin command:
 ```
@@ -230,7 +238,7 @@ $ ./sem-6000.exp fridge --toggle
 
 ### Queueing commands / sleep command
 
-Since it takes some time to establish the bluetooth connection each time you start the script, I have introduced command queuing. Each command starts with a dash. In this example I queue 7 commands. The _sleep_ command pauses processing before the next command starts. 
+Since it takes some time to establish the Bluetooth connection each time you start the script, I have introduced command queuing. Each command starts with a dash. In this example I queue 7 commands. The _sleep_ command pauses processing before the next command starts. 
 
 ```
 $ ./sem-6000.exp fridge --on --sleep 1 --toggle --sleep 1 --toggle --sleep 1 --off
@@ -274,7 +282,7 @@ $ ./sem-6000.exp fridge --status --print
 
 The socket has 12 schedulers that can be programmed once or per weekday. 
 
-First let's take a look at the current state of schedulers:
+First let's look at the current state of schedulers:
 ```
 $ ./sem-6000.exp fridge --scheduler --print
         Schedulers:          0
@@ -376,7 +384,7 @@ $ ./sem-6000.exp fridge --status --print
           Total consumption: 0.0 kWh
 ```
 
-### Realtime monitoring
+### Real-time monitoring
 
 The _measure_ command captures power data. This monitors the power consumption for 5 seconds:
 ```
@@ -401,7 +409,7 @@ a. Hourly for the last 24 hours
 b. Daily for the last 30 days
 c. Monthly for the last 12 month
 
-In order to request recorded data, use the _data_ command. 
+To request recorded data, use the _data_ command. 
 
 The following command requests recorded data for last 24 hours and prints it with header line.
 ```
@@ -420,6 +428,77 @@ Timestamp       Watt (Wh)
 If you want to reset all recorded data enter the following:
 ```
 $ ./sem-6000.exp fridge --data reset
+```
+
+## Statistics
+
+The smart meter measures consumption permanently. Based on the power-on time the script calculates 
+average and projected consumption.
+
+Unfortunately the device doesn't store the power-on time by itself
+(in comparison to the Voltcraft SEM-3600BT). That's why I store the starting time for statistics in 
+one of the fields meant for reduced price fields. Therefore, you can't activated reduced price mode and
+statistics. Statistics only work if reduced price mode is deactivated and vice versa.
+
+
+### Start statistics  
+
+In order to activate statistics, do the following:
+
+```
+$ sem-6000 fridge --statistics
+```
+
+Note that this also resets all measured data. If you remember when you have started measuring, you can just set the starting time like this. Here time and date are set to Octobre, 31st. 
+```
+$ sem-6000 fridge --statistics set 10-31 20:15
+``` 
+
+Note that if date is in future the script assumes that last year is meant. 
+
+
+### Request statistics
+
+After statistics was set and ran for at least one minute you can request statistics as follows:
+```
+$ sem-6000 fridge --statistics --print
+Settings:
+  LED ring:             off
+  Overload limit:       1300 W
+
+  Price:                0.31 $ per kWh
+
+  Reduced mode:         off
+
+Status:
+  Power:                on
+  Voltage:              236 VAC
+  Ampere:               0.195 A
+  Watts:                25.568 W
+  Frequency:            50 Hz
+  Power factor:         0.56
+  Total consumption:    0.0 kWh
+  Total last 12 months: 14.239 kWh
+
+Statistics:
+  Log statistics since:  2021-10-03 11:17
+  Current consumption:   14.239 kWh
+  Avg. consumption:      42.62 Wh
+  Projected consumption: 373.351 kWh per year
+  Projected price:       115.74 $ per year
+
+2020-11 0
+2020-12 0
+2021-01 0
+2021-02 0
+2021-03 0
+2021-04 0
+2021-05 0
+2021-06 0
+2021-07 0
+2021-08 0
+2021-09 0
+2021-10 14239
 ```
 
 ## Settings
@@ -453,7 +532,7 @@ $ ./sem-6000.exp fridge --overload 3680
 ```
 
 ### Prices
-The switch can store two different prices, i.e. the normal price and a reduced price. Actually the switch doesn't seem to calculate internally, so that this setting makes only sense if you use the official app.
+The switch can store two different prices, i.e. the normal price and a reduced price. Actually, the switch doesn't seem to calculate internally, so that this setting makes only sense if you use the official app.
 
 It goes like this:
 ```
