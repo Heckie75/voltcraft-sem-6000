@@ -452,7 +452,7 @@ proc print_measurement_as_csv {} {
   global sem
 
   append out [ current_datetime_str ]
-  append out "$sem(power)\t$sem(voltage)\t$sem(ampere)"
+  append out "$sem(power)\t$sem(voltage)\t$sem(ampere)\t"
   append out "$sem(watt)\t$sem(frequency)\t$sem(power_factor)"
 
   return $out
