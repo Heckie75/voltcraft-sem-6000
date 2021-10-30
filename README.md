@@ -437,8 +437,8 @@ average and projected consumption.
 
 Unfortunately the device doesn't store the power-on time by itself
 (in comparison to the Voltcraft SEM-3600BT). That's why I store the starting time for statistics in 
-one of the fields meant for reduced price fields. Therefore, you can't activated reduced price mode and
-statistics. Statistics only work if reduced price mode is deactivated and vice versa.
+one of the fields meant for reduced price. Therefore, you can't activate reduced price mode and
+statistics in parallel. Statistics only work if reduced price mode is deactivated and vice versa.
 
 
 ### Start statistics  
