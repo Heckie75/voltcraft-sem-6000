@@ -387,7 +387,7 @@ proc print_measurement {} {
   append out "  Watts:                $sem(watt) W\n"
   append out "  Frequency:            $sem(frequency) Hz\n"
   append out "  Power factor:         $sem(power_factor)\n"
-  append out "  Total consumption:    $sem(total) kWh\n"
+#  append out "  Total consumption:    $sem(total) kWh\n"
 
   if { $sem(total_day) != -1} {
     append out "  Total last 24h:       [expr $sem(total_day) / 1000.0 ] kWh\n"
@@ -674,7 +674,8 @@ proc json_measurement {} {
     append out "    \"total_year\" : $sem(total_year),\n"
   }
 
-  append out "    \"total\" : $sem(total)\n"
+#  append out "    \"total\" : $sem(total)\n"
+  append out "    \"total\" : null\n"
   append out "  \}"
 
   return $out
