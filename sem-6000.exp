@@ -177,14 +177,8 @@ set INIT(scheduler)            128
 set INIT(randommode)           256
 set INIT(statistics)           512
 
-set hndfile                    ""
-
-set BASIC_HANDLES              3
-set CHARACTERISTIC(2a00)       "devname"
-set CHARACTERISTIC(fff3)       "request"
-set CHARACTERISTIC(fff4)       "notification"
-
-array set HANDLES              {}
+set HANDLE(req)                43
+set HANDLE(notification)       46
 
 set CMD(SCHEDULER_ADD)         0
 set CMD(SCHEDULER_EDIT)        1
@@ -961,7 +955,6 @@ proc lookup_alias { pattern } {
 proc get_mac { id } {
 
   global MAC_PATTERN
-  global hndfile
 
   set mac ""
 
@@ -972,8 +965,6 @@ proc get_mac { id } {
     read_aliases
     set mac [ lookup_alias $id ]
   }
-
-  append hndfile "/tmp/sem6-" $mac ".hnd"
 
   return $mac
 
@@ -1276,9 +1267,11 @@ proc gatt_char_read_hnd { handle } {
 
   global DELAY
 
-  log "INFO:\t>>>\tchar-read-hnd $handle"
+  set hnd_hex [ decimal_to_hex $handle ]
 
-  send "char-read-hnd $handle\r"
+  log "INFO:\t>>>\tchar-read-hnd $hnd_hex"
+
+  send "char-read-hnd $hnd_hex\r"
 
   expect {
     -indices -re "Characteristic value/descriptor: (.*)\r" {
@@ -1312,14 +1305,15 @@ proc gatt_char_write_req { handle bytes } {
 
   global DELAY
 
+  set hnd_hex [ decimal_to_hex $handle ]
   set value ""
   foreach b $bytes {
     append value [ decimal_to_hex $b ]
   }
 
-  log "INFO:\t>>>\tchar-write-req $handle $value"
+  log "INFO:\t>>>\tchar-write-req $hnd_hex $value"
 
-  send "char-write-req $handle $value\r"
+  send "char-write-req $hnd_hex $value\r"
 
   expect {
     "Characteristic value was written successfully" {
@@ -1334,7 +1328,7 @@ proc gatt_char_write_req { handle bytes } {
       -indices -re "Notification handle = 0x\[0-9a-f]+ value: (\[0-9a-f ]+)\r" {
         after $DELAY
         set buffer $expect_out(1,string)
-        log "INFO:\t<<<\tNotification handle = 0x$handle value: $buffer"
+        log "INFO:\t<<<\tNotification handle = 0x$hnd_hex value: $buffer"
       }
       timeout {
         log "WARN:\tTimeout. Notification not received"
@@ -1389,7 +1383,7 @@ proc gatt_char_write_req { handle bytes } {
 
 proc command_req { bytes } {
 
-  global HANDLES
+  global HANDLE
 
   set full_req {}
 
@@ -1413,7 +1407,7 @@ proc command_req { bytes } {
   lappend full_req 255
   lappend full_req 255
 
-  set notification [ gatt_char_write_req $HANDLES(request) $full_req ]
+  set notification [ gatt_char_write_req $HANDLE(req) $full_req ]
 
   # collect and check response payload
   set length [ llength $notification ]
@@ -1450,8 +1444,6 @@ proc init { level } {
   global sem
 
   if { ( $sem(init) & $INIT(connect) ) != $INIT(connect) } {
-
-    init_handles
 
     set connected [ gatt_connect $sem(mac) ]
 
@@ -1548,57 +1540,6 @@ proc init { level } {
 
 
 
-proc init_handles {} {
-
-  global BASIC_HANDLES
-  global HANDLES
-  global CHARACTERISTIC
-  global hndfile
-
-  log "INFO:\tInit handles of device"
-
-  if {[file exists $hndfile] == 0 || [file size $hndfile] == 0} {
-    setup_characteristics
-  }
-
-  set fp [open $hndfile r]
-  fconfigure $fp -buffering line
-
-  gets $fp data
-  while {$data != ""} {
-    regexp "char value handle = 0x\(\[0-9a-fA-F]+), uuid = \[0]+(\[0-9a-fA-F]+)" $data matched handle uuid
-
-    if { ! [info exists CHARACTERISTIC($uuid)] } {
-      gets $fp data
-      continue
-    }
-
-    set HANDLES($CHARACTERISTIC($uuid)) $handle
-    gets $fp data
-  }
-
-  close $fp
-
-  if { [array size HANDLES] < $BASIC_HANDLES } {
-    puts stderr "ERROR:\tUnable to initialise handles of your device.\n"
-    exit 1
-  }
-
-  log "INFO:\tHandles initialised successfully"
-
-}
-
-proc setup_characteristics {} {
-
-  global hndfile
-  global sem
-
-  exec gatttool -b $sem(mac) --characteristics > $hndfile
-
-}
-
-
-
 proc req_auth {} {
 
   global INIT
@@ -1652,13 +1593,12 @@ proc req_auth {} {
 proc req_device_name {} {
 
   global sem
-  global HANDLES
   global INIT
 
   # 1. Read name
   log "INFO:\tRead name"
 
-  set b [ gatt_char_read_hnd $HANDLES(devname) ]
+  set b [ gatt_char_read_hnd 3 ]
 
   set name ""
   foreach i $b {
