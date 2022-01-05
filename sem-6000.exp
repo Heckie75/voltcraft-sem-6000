@@ -640,7 +640,7 @@ proc json_device {} {
     append out "    \"pin\" : \"$sem(pin)\",\n"
     append out "    \"name\" : \"$sem(name)\",\n"
     append out "    \"serial\" : \"$sem(serial)\",\n"
-    append out "    \"firmware\" : \"$sem(firmware)\",\n"    
+    append out "    \"firmware\" : \"$sem(firmware)\",\n"
     append out "    \"alias\" : \"$sem(alias)\"\n"
     append out "  \}"
 
@@ -1361,21 +1361,19 @@ proc gatt_char_write_req { handle bytes } {
     } else {
 
       set expected_length [ lindex $notification 1 ]
-      if { [ expr $expected_length + 2 ] == $current_length } {
+      if { [ expr $expected_length + 2 ] == $current_length || [ expr $expected_length + 4 ] == $current_length } {
 
-        # add end sequence manually
         log "INFO:\tResponse already completed in current notification in terms of announced length. No need to wait for another notification"
-        lappend notification 255
-        lappend notification 255
+
+        if { [ lindex $notification [ expr $current_length - 1 ] ] != 255 \
+          && [ lindex $notification [ expr $current_length - 2 ] ] != 255 } {
+
+          # add end sequence manually
+          lappend notification 255
+          lappend notification 255
+        }
+
         break
-
-      } elseif { [ expr $expected_length + 4 ] == $current_length \
-                && [ lindex $notification [ expr $current_length - 1 ] ] == 255 \
-                && [ lindex $notification [ expr $current_length - 2 ] ] == 255 } {
-
-        log "INFO:\tResponse completed in terms of announced length and end sequence"
-        break
-
       }
 
       log "INFO:\tResponse not complete, wait for another notification..."
@@ -3024,7 +3022,7 @@ proc do_command { command } {
 
     ^sync$ {
 
-      init 0
+      init $INIT(auth)
       req_sync
 
     }
