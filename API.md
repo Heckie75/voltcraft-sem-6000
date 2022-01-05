@@ -1,7 +1,7 @@
 # PIN
 ## Authorization with PIN
 ```
-char-write-req 0x2b 0f0c170000000000000000000018ffff
+char-write-cmd 0x2b 0f0c170000000000000000000018ffff
                     | | |   | |     | |       | +  static end sequence of message, 0xffff
                     | | |   | |     | |       + checksum byte starting with length-byte, ending w/ byte before
                     | | |   | |     | + always 0x00000000
@@ -25,7 +25,7 @@ Notification handle = 0x002e value: 0f 06 17 00 00 00 00 18 ff ff
 
 ## Change PIN
 ```
-char-write-req 0x2b 0f0c170001010203040000000018ffff
+char-write-cmd 0x2b 0f0c170001010203040000000018ffff
                     | | |     |       |       | +  static end sequence of message, 0xffff
                     | | |     |       |       + checksum byte starting with length-byte, ending w/ byte before
                     | | |     |       + old PIN, 4 bytes e.g. 01020304
@@ -46,7 +46,7 @@ Notification handle = 0x002e value: 0f 06 17 00 00 01 00 18 ff ff
 
 ## Reset PIN to "0000"
 ```
-char-write-req 0x2b 0f0c170002000000000000000018ffff
+char-write-cmd 0x2b 0f0c170002000000000000000018ffff
                     | | |   | |               | +  static end sequence of message, 0xffff
                     | | |   | |               + checksum byte starting with length-byte, ending w/ byte before
                     | | |   | + static 0x0000000000000000
@@ -68,7 +68,7 @@ Notification handle = 0x002e value: 0f 06 17 00 00 02 00 18 ff ff
 # Setup and settings
 ## Synchronize datetime
 ```
-char-write-req 0x2b 0f0c010029180a160607e3000053ffff
+char-write-cmd 0x2b 0f0c010029180a160607e3000053ffff
                     | | |   | | | | | | | |   | + always 0xffff
                     | | |   | | | | | | | |   + checksum byte starting with length-byte
                     | | |   | | | | | | | + always 0000
@@ -93,7 +93,7 @@ Notification handle = 0x002e value: 0f 04 01 00 00 02 ff ff
 
 ## Request settings
 ```
-char-write-req 0x2b 0f051000000011ffff
+char-write-cmd 0x2b 0f051000000011ffff
                     | | |   |   | + always ffff
                     | | |   |   + checksum byte starting with length-byte
                     | | |   + always 0000
@@ -121,7 +121,7 @@ Notification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60
 
 ## Set LED ring
 ```
-char-write-req 0x2b 0f090f0005010000000016ffff
+char-write-cmd 0x2b 0f090f0005010000000016ffff
                     | | |   | | |       | + always 0xffff
                     | | |   | | |       + checksum byte starting with length-byte
                     | | |   | | + always 0x00000000
@@ -142,7 +142,7 @@ Notification handle = 0x002e value: 0f 05 0f 00 05 00 15 ff ff
 
 ## Set overload power
 ```
-char-write-req 2b 0f0705000e60000074ffff
+char-write-cmd 2b 0f0705000e60000074ffff
                   | | |   |   |   | + static end sequence of message, 0xffff
                   | | |   |   |   + checksum byte starting with length-byte, ending w/ byte before
                   | | |   |   + status 0x0000
@@ -163,7 +163,7 @@ Notification handle = 0x002e value: 0f 04 05 00 00 06 ff ff
 
 ## Set prices
 ```
-char-write-req 2b 0f90f00047b2d00000000b2ffff
+char-write-cmd 2b 0f90f00047b2d00000000b2ffff
                   | | |     | | |       | + End sequence 0xffff
                   | | |     | | |       + Checksum
                   | | |     | | + static 0x00000000
@@ -184,7 +184,7 @@ Notification handle = 0x2b value: 0f 05 0f 00 04 00 14 ff ff
 
 ## Set reduced period
 ```
-char-write-req 2b 0f090f000101005301288effff
+char-write-cmd 2b 0f090f000101005301288effff
                   | | |     | |   |    | + End sequence 0xffff
                   | | |     | |   |    + Checksum
                   | | |     | |   + 2 bytes for end time in minutes, here 04:56
@@ -205,7 +205,7 @@ Notification handle = 0x2b value: 0f 05 0f 00 01 00 11 ff ff
 
 # Switch on / off
 ```
-char-write-req 0x2b 0f06030000000004ffff
+char-write-cmd 0x2b 0f06030000000004ffff
                     | | |   | |   | + static end sequence of message, 0xffff
                     | | |   | |   + checksum byte starting with length-byte, ending w/ byte before
                     | | |   | + Static 0x0000
@@ -227,7 +227,7 @@ Notification handle = 0x002e value: 0f 04 03 00 00 04 ff ff
 # Timer
 ## Get timer status
 ```
-char-write-req 2b 0f05090000000affff
+char-write-cmd 2b 0f05090000000affff
 
 Notification handle = 0x2b value: 0f 0e 09 00 01 10 04 10 08 07 13 01 51 45 00 e8 ff ff
                                   |  |  |     |  |  |  |  |  |  |  |           |  + static end sequence of message, 0xffff
@@ -247,7 +247,7 @@ Notification handle = 0x2b value: 0f 0e 09 00 01 10 04 10 08 07 13 01 51 45 00 e
 
 ## Set timer
 ```
-char-write-req 2b 0f0c0800012d1c1607071300008affff
+char-write-cmd 2b 0f0c0800012d1c1607071300008affff
                   | | |   | | | | | | | |   | + static end sequence of message, 0xffff
                   | | |   | | | | | | | |   + checksum byte starting with length-byte, ending w/ byte before
                   | | |   | | | | | | | + Static 0x0000
@@ -272,7 +272,7 @@ Notification handle = 0x2b value: 0f 04 08 00 00 09 ff ff
 
 ## Stop timer
 ```
-char-write-req 2b 0f0c080000000000000000000009ffff
+char-write-cmd 2b 0f0c080000000000000000000009ffff
                   | | |   | | | | | | | |   | + static end sequence of message, 0xffff
                   | | |   | | | | | | | |   + checksum byte starting with length-byte, ending w/ byte before
                   | | |   | | | | | | | + Static 0x0000
@@ -300,7 +300,7 @@ Notification handle = 0x2e value: 0f 04 08 00 00 09 ff ff
 
 No schedulers set
 ```
-char-write-req 2b 0f06140000000015ffff
+char-write-cmd 2b 0f06140000000015ffff
                   | | |   |     | + static end sequence of message, 0xffff
                   | | |   |     + checksum byte starting with length-byte, ending w/ byte before
                   | | |   + Page if more than 4 schedulers, 0 = 1st page , 1 = 2nd page
@@ -365,7 +365,7 @@ Notification handle = 0x2e value: 5b 4c ff ff
 
 Request 2nd page
 ```
-char-write-req 2b 0f06140001000016ffff
+char-write-cmd 2b 0f06140001000016ffff
                           + Page if more than 4 schedulers, 0 = 1st page , 1 = 2nd page
 
 Notification handle = 0x2e value: 0f 10 14 00 05 0b 01 00 01 13 07 0e 01 01 00 00 40 91 ff ff
@@ -373,7 +373,7 @@ Notification handle = 0x2e value: 0f 10 14 00 05 0b 01 00 01 13 07 0e 01 01 00 0
 
 ## Set scheduler
 ```
-char-write-req 2b 0f0f1300010001010113070e0e1a000068ffff
+char-write-cmd 2b 0f0f1300010001010113070e0e1a000068ffff
                   | | |   | | | | | | | | | | |   | + Static end sequence of message, 0xffff 
                   | | |   | | | | | | | | | | |   + Checksum byte starting with length-byte, ending w/ byte before
                   | | |   | | | | | | | | | | + Static 0x0000
@@ -403,7 +403,7 @@ Notification handle = 0x2b value: 0f 06 13 00 01 00 00 15 ff ff
 
 ## Reset scheduler
 ```
-char-write-req 2b 0f0f1300020c0000000000000000000022ffff
+char-write-cmd 2b 0f0f1300020c0000000000000000000022ffff
                           | + ID of slot
                           + 2 = remove scheduler
 ```
@@ -412,7 +412,7 @@ char-write-req 2b 0f0f1300020c0000000000000000000022ffff
 ## Get randommode
 
 ```
-char-write-req 0x2b 0f051600000017ffff
+char-write-cmd 0x2b 0f051600000017ffff
 
 Notification handle = 0x2b value: 0f 0b 16 00 01 55 02 03 04 05 00 00 7b ff ff
                                   |  |  |     |  |  |  |  |  |        |  + Static end sequence of message, 0xffff 
@@ -430,7 +430,7 @@ Notification handle = 0x2b value: 0f 0b 16 00 01 55 02 03 04 05 00 00 7b ff ff
 
 ## Set random mode
 ```
-char-write-req 2b 0f0b1500017f020304050000a4ffff
+char-write-cmd 2b 0f0b1500017f020304050000a4ffff
                   | | |   | | | | | |     | + Static end sequence of message, 0xffff
                   | | |   | | | | | |     + Checksum byte starting with length-byte, ending w/ byte before           
                   | | |   | | | | | + End minute
@@ -449,7 +449,7 @@ Notification handle = 0x2b value: 0f 04 15 00 00 16 ff ff
 # Measure power and consumption
 ## Capture measurement
 ```
-char-write-req 0x2b 0f050400000005ffff
+char-write-cmd 0x2b 0f050400000005ffff
                     | | |       | + static end sequence of message, 0xffff
                     | | |       + checksum byte starting with length-byte, ending w/ byte before
                     | | + Capture measurement command 0x040000
@@ -476,7 +476,7 @@ Note: Typical 0xffff end sequence is missing in this response. This is probably 
 
 ## Reguest measurements for year, month and day
 ```
-char-write-req 2b 0f050b0000000cffff
+char-write-cmd 2b 0f050b0000000cffff
                   | | | |     | + static end sequence of message, 0xffff
                   | | | |     + checksum byte starting with length-byte, ending w/ byte before
                   | | | + Static 0x000000
@@ -567,7 +567,7 @@ Notification handle = 0x002e value: 00 0e 00 0e 00 0e 00 0e 00 0d 00 00 42 ff ff
 
 ## Reset data
 ```
-char-write-req 2b 0f090f0000000000000010ffff
+char-write-cmd 2b 0f090f0000000000000010ffff
                   | | |   |           | + static end sequence of message, 0xffff
                   | | |   |           + checksum byte starting with length-byte, ending w/ byte before
                   | | |   + 0 = factory reset, 2 = reset stored consumption
@@ -599,7 +599,7 @@ Holladiewaldfee
 
 ## Set name
 ```
-char-write-req 0x2b 0f170200000000000000000000000000000000000000000000ffff
+char-write-cmd 0x2b 0f170200000000000000000000000000000000000000000000ffff
                     | | |   |                                 | |   + checksum
                     | | |   |                                 | + static 0x0000
                     | | |   +---------------------------------+ Name in ASCII, max. 18 characters
@@ -618,7 +618,7 @@ Notification handle = 0x002e value: 0f 04 02 00 00 03 ff ff
 
 ## Get serial
 ```
-char-write-req 0x2b 0f051100000012ffff
+char-write-cmd 0x2b 0f051100000012ffff
                     | | |   |   + checksum
                     | | |   + static 0x0000
                     | | + Get serial command, 0x1100

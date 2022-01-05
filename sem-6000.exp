@@ -181,7 +181,8 @@ set hndfile                    ""
 
 set BASIC_HANDLES              3
 set CHARACTERISTIC(2a00)       "devname"
-set CHARACTERISTIC(fff3)       "request"
+set CHARACTERISTIC(fff1)       "firmware"
+set CHARACTERISTIC(fff3)       "command"
 set CHARACTERISTIC(fff4)       "notification"
 
 array set HANDLES              {}
@@ -206,6 +207,7 @@ set sem(mac)                   ""
 set sem(pin)                   ""
 set sem(name)                  ""
 set sem(serial)                ""
+set sem(firmware)              ""
 set sem(alias)                 ""
 
 set sem(power)                 -1
@@ -348,6 +350,7 @@ proc print_device {} {
     append out "  Device PIN:           $sem(pin)\n"
     append out "  Name:                 $sem(name)\n"
     append out "  Serial:               $sem(serial)\n"
+    append out "  Firmware:             $sem(firmware)\n"
     append out "  Alias:                $sem(alias)\n"
     append out "\n"
 
@@ -637,6 +640,7 @@ proc json_device {} {
     append out "    \"pin\" : \"$sem(pin)\",\n"
     append out "    \"name\" : \"$sem(name)\",\n"
     append out "    \"serial\" : \"$sem(serial)\",\n"
+    append out "    \"firmware\" : \"$sem(firmware)\",\n"    
     append out "    \"alias\" : \"$sem(alias)\"\n"
     append out "  \}"
 
@@ -1317,12 +1321,12 @@ proc gatt_char_write_req { handle bytes } {
     append value [ decimal_to_hex $b ]
   }
 
-  log "INFO:\t>>>\tchar-write-req $handle $value"
+  log "INFO:\t>>>\tchar-write-cmd $handle $value"
 
-  send "char-write-req $handle $value\r"
+  send "char-write-cmd $handle $value\r"
 
   expect {
-    "Characteristic value was written successfully" {
+    "" {
       log "INFO:\tOK"
     }
   }
@@ -1413,7 +1417,7 @@ proc command_req { bytes } {
   lappend full_req 255
   lappend full_req 255
 
-  set notification [ gatt_char_write_req $HANDLES(request) $full_req ]
+  set notification [ gatt_char_write_req $HANDLES(command) $full_req ]
 
   # collect and check response payload
   set length [ llength $notification ]
@@ -1504,6 +1508,7 @@ proc init { level } {
 
     # read device information
     req_device_name
+    req_device_firmware
     req_device_serial
     set sem(init) [ expr $sem(init) | $INIT(device) ]
 
@@ -1674,6 +1679,35 @@ proc req_device_name {} {
   } else {
 
     log "INFO:\tNo name received"
+    return -1
+
+  }
+
+}
+
+
+
+proc req_device_firmware {} {
+
+  global sem
+  global HANDLES
+  global INIT
+
+  log "INFO:\tRead firmware version"
+
+  set response [ gatt_char_read_hnd $HANDLES(firmware) ]
+
+  if { [ llength $response ] == 16} {
+
+    set sem(firmware) "[ lindex $response 11 ].[ lindex $response 12 ]"
+
+    log "INFO:\tFirmware version requested successfully"
+
+    return 0
+
+  } else {
+
+    log "ERROR:\tRequesting firmware version failed!"
     return -1
 
   }
