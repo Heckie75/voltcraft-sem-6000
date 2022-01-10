@@ -1,3 +1,51 @@
+# Characteristics
+
+In order to control the device you need to determine the correct handles by quering the characteristics, e.g. 
+
+```
+$ gatttool -b FC:69:47:06:CB:C6 -I
+[FC:69:47:06:CB:C6][LE]> connect
+Attempting to connect to FC:69:47:06:CB:C6
+Connection successful
+[FC:69:47:06:CB:C6][LE]> characteristics 
+...
+handle: 0x0002, char properties: 0x02, char value handle: 0x0003, uuid: 00002a00-0000-1000-8000-00805f9b34fb
+...
+handle: 0x0024, char properties: 0x06, char value handle: 0x0025, uuid: 0000fff1-0000-1000-8000-00805f9b34fb
+handle: 0x0027, char properties: 0x02, char value handle: 0x0028, uuid: 0000fff2-0000-1000-8000-00805f9b34fb
+handle: 0x002a, char properties: 0x04, char value handle: 0x002b, uuid: 0000fff3-0000-1000-8000-00805f9b34fb
+handle: 0x002d, char properties: 0x10, char value handle: 0x002e, uuid: 0000fff4-0000-1000-8000-00805f9b34fb
+...
+```
+| uuid | handle | description                                      |
+|------|--------|--------------------------------------------------|
+| 2a00 | 0x0003 | Device name                                      |
+| fff1 | 0x0025 | Device vendor, hardware, firmware                |
+| fff3 | 0x002b | Handle for command requests ```char-write-cmd``` |
+| fff4 | 0x002e | Handle for receiving notifications               |
+
+Note: The handles can be different. They relate on firmware and hardware version of your device
+
+# Device vendor, hardware, firmware
+
+```
+char-read-hnd 0025
+
+Characteristic value/descriptor: 56 4f 4c 43 46 54 04 00 00 00 00 01 0d 02 00 1e 
+                                 |                                |     + Hardware version (2 bytes for major and minor), here: 2.0
+                                 |                                + Firmware version (2 bytes for major and minor), here: 1.13
+                                 + Vendor string in ASCII (6 bytes)
+```
+
+# Hardware version and MTU
+If you have a device with hardware version 2 or lower you will get multiple notifications per request which depends on the type of request. 
+If you have a device with hardware version 3 or above you MUST set the so called MTU so that the package size of notifications is set to 160 bytes. Then you get always just one notification per request. 
+
+```
+mtu 160
+MTU was exchanged successfully: 160
+```
+
 # PIN
 ## Authorization with PIN
 ```

@@ -34,6 +34,8 @@ set verbose 0
 
 set DELAY 100
 
+set MTU 160
+
 set timeout 3
 
 set MAC_PATTERN                "\[0-9A-F]{2}:\[0-9A-F]{2}:\[0-9A-F]{2}:\[0-9A-F]{2}:\[0-9A-F]{2}:\[0-9A-F]{2}"
@@ -181,7 +183,7 @@ set hndfile                    ""
 
 set BASIC_HANDLES              3
 set CHARACTERISTIC(2a00)       "devname"
-set CHARACTERISTIC(fff1)       "firmware"
+set CHARACTERISTIC(fff1)       "device"
 set CHARACTERISTIC(fff3)       "command"
 set CHARACTERISTIC(fff4)       "notification"
 
@@ -207,7 +209,10 @@ set sem(mac)                   ""
 set sem(pin)                   ""
 set sem(name)                  ""
 set sem(serial)                ""
+set sem(vendor)                ""
 set sem(firmware)              ""
+set sem(hardware)              ""
+set sem(mtu)                   0
 set sem(alias)                 ""
 
 set sem(power)                 -1
@@ -349,8 +354,11 @@ proc print_device {} {
     append out "  Mac:                  $sem(mac)\n"
     append out "  Device PIN:           $sem(pin)\n"
     append out "  Name:                 $sem(name)\n"
+    append out "  Vendor:               $sem(vendor)\n"
     append out "  Serial:               $sem(serial)\n"
     append out "  Firmware:             $sem(firmware)\n"
+    append out "  Hardware:             $sem(hardware)\n"
+    append out "  MTU:                  $sem(mtu)\n"
     append out "  Alias:                $sem(alias)\n"
     append out "\n"
 
@@ -639,8 +647,11 @@ proc json_device {} {
     append out "    \"mac\" : \"$sem(mac)\",\n"
     append out "    \"pin\" : \"$sem(pin)\",\n"
     append out "    \"name\" : \"$sem(name)\",\n"
+    append out "    \"vendor\" : \"$sem(vendor)\",\n"
     append out "    \"serial\" : \"$sem(serial)\",\n"
     append out "    \"firmware\" : \"$sem(firmware)\",\n"
+    append out "    \"hardware\" : \"$sem(hardware)\",\n"
+    append out "    \"mtu\" : $sem(mtu),\n"
     append out "    \"alias\" : \"$sem(alias)\"\n"
     append out "  \}"
 
@@ -1263,6 +1274,35 @@ proc gatt_connect { mac } {
 
 
 
+proc gatt_mtu { l } {
+
+  global DELAY
+  global sem
+
+  log "INFO:\tTry to set MTU to $l bytes"
+
+  expect "\[LE\]"
+  send "mtu $l\r"
+  expect {
+    -indices -re "MTU was exchanged successfully: (.*)\r" {
+      after $DELAY
+      set buffer $expect_out(1,string)
+      set sem(mtu) $buffer
+      log "INFO:\t<<<\tMTU was exchanged to $buffer bytes"
+      return
+    }
+    timeout {
+      log "WARN:\tTimeout. MTU was not exchanged"
+    }
+  }
+  
+  log "ERROR:\tset MTU failed"
+
+}
+
+
+
+
 proc gatt_disconnect {} {
 
   global sem
@@ -1292,7 +1332,7 @@ proc gatt_char_read_hnd { handle } {
     }
     timeout {
       log "WARN:\tTimeout. Characteristic value/descriptor not received"
-      return $notification
+      return ""
     }
   }
 
@@ -1361,18 +1401,10 @@ proc gatt_char_write_req { handle bytes } {
     } else {
 
       set expected_length [ lindex $notification 1 ]
-      if { [ expr $expected_length + 2 ] == $current_length || [ expr $expected_length + 4 ] == $current_length } {
 
-        log "INFO:\tResponse already completed in current notification in terms of announced length. No need to wait for another notification"
+      if { $current_length >= [ expr $expected_length + 2 ] } {
 
-        if { [ lindex $notification [ expr $current_length - 1 ] ] != 255 \
-          && [ lindex $notification [ expr $current_length - 2 ] ] != 255 } {
-
-          # add end sequence manually
-          lappend notification 255
-          lappend notification 255
-        }
-
+        log "INFO:\tResponse completed in terms of announced length."
         break
       }
 
@@ -1382,7 +1414,29 @@ proc gatt_char_write_req { handle bytes } {
 
   }
 
-  return $notification
+  # Check end sequence
+  if { [ lindex $notification [ expr $current_length - 1 ] ] != 255 \
+    && [ lindex $notification [ expr $current_length - 2 ] ] != 255 } {
+
+    log "WARN:\tEnd sequence is missing in notification"
+  }
+
+  # Check checksum
+  set expected_checksum [ lindex $notification [ expr $expected_length + 1 ] ]
+  set response {}
+  set sum 1
+  for { set i 2 } { $i < [ expr $expected_length + 1 ] } { incr i } {
+    set b [ lindex $notification $i ]
+    set sum [ expr $sum + $b ]
+    lappend response $b
+  }
+  set sum [ expr $sum & 255 ]
+
+  if { $sum != $expected_checksum } {
+    log "WARN:\tChecksum of notification invalid! Expected $expected_checksum but got $sum"
+  }
+
+  return $response
 
 }
 
@@ -1415,31 +1469,7 @@ proc command_req { bytes } {
   lappend full_req 255
   lappend full_req 255
 
-  set notification [ gatt_char_write_req $HANDLES(command) $full_req ]
-
-  # collect and check response payload
-  set length [ llength $notification ]
-  if { $length < 6 } {
-
-    log "ERROR:\tNotification invalid!"
-
-  }
-
-  set response {}
-  set sum 1
-  for { set i 2 } { $i < [ expr $length - 3 ] } { incr i } {
-    set b [ lindex $notification $i ]
-    set sum [ expr $sum + $b ]
-    lappend response $b
-  }
-  set sum [ expr $sum & 255 ]
-
-  if { $sum != [ lindex $notification [ expr $length - 3 ] ] } {
-    log "ERROR:\tChecksum of notification invalid!"
-    return {}
-  }
-
-  return $response
+  return  [ gatt_char_write_req $HANDLES(command) $full_req ]
 
 }
 
@@ -1449,6 +1479,7 @@ proc command_req { bytes } {
 proc init { level } {
 
   global INIT
+  global MTU
   global sem
 
   if { ( $sem(init) & $INIT(connect) ) != $INIT(connect) } {
@@ -1463,6 +1494,8 @@ proc init { level } {
       exit -1
 
     } else {
+
+      gatt_mtu $MTU
 
       set sem(init) [ expr $sem(init) | $INIT(connect) ]
 
@@ -1506,7 +1539,7 @@ proc init { level } {
 
     # read device information
     req_device_name
-    req_device_firmware
+    req_device_info
     req_device_serial
     set sem(init) [ expr $sem(init) | $INIT(device) ]
 
@@ -1685,27 +1718,34 @@ proc req_device_name {} {
 
 
 
-proc req_device_firmware {} {
+proc req_device_info {} {
 
   global sem
   global HANDLES
   global INIT
 
-  log "INFO:\tRead firmware version"
+  log "INFO:\tRead firmware/hardware version"
 
-  set response [ gatt_char_read_hnd $HANDLES(firmware) ]
+  set response [ gatt_char_read_hnd $HANDLES(device) ]
 
   if { [ llength $response ] == 16} {
 
-    set sem(firmware) "[ lindex $response 11 ].[ lindex $response 12 ]"
+    set vendor ""
+    for {set i 0} {$i < 6} {incr i} {
+      append vendor [ binary format c* [ lindex $response $i ] ]
+    }
 
-    log "INFO:\tFirmware version requested successfully"
+    set sem(vendor) $vendor
+    set sem(firmware) "[ lindex $response 11 ].[ lindex $response 12 ]"
+    set sem(hardware) "[ lindex $response 13 ].[ lindex $response 14 ]"
+
+    log "INFO:\tFirmware/hardware version requested successfully"
 
     return 0
 
   } else {
 
-    log "ERROR:\tRequesting firmware version failed!"
+    log "ERROR:\tRequesting firmware/hardware version failed!"
     return -1
 
   }
