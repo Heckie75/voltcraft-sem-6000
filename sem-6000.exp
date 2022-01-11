@@ -1295,7 +1295,7 @@ proc gatt_mtu { l } {
       log "WARN:\tTimeout. MTU was not exchanged"
     }
   }
-  
+
   log "ERROR:\tset MTU failed"
 
 }
@@ -2084,7 +2084,7 @@ proc capture_measurement {} {
 
   set response [ command_req $bytes ]
 
-  if { [ llength $response ] == 16 \
+  if { ( [ llength $response ] == 16 || [ llength $response ] == 14 ) \
       && [ lindex $response 0 ] == 4 \
       && [ lindex $response 1 ] == 0 } {
 
@@ -2116,7 +2116,19 @@ proc parse_measurement { b } {
   set sem(ampere)       [ expr ( [ lindex $b 7 ] << 8  | [ lindex $b 8 ] ) / 1000.0 ]
   set sem(power_factor) [ calc_power_factor $sem(power) $sem(voltage) $sem(ampere) $sem(watt) ]
   set sem(frequency)    [ expr [ lindex $b 9 ] ]
-  set sem(total)        [ expr ( [ lindex $b 12 ] << 24 | [ lindex $b 13 ] << 16 | [ lindex $b 14 ] << 8  | [ lindex $b 15 ] ) / 1000.0 ]
+
+  
+  if { [ llength $b ] == 16 } {
+
+    # Never seen other values than 0. Does not seem to work
+    set sem(total)      [ expr ( [ lindex $b 12 ] << 24 | [ lindex $b 13 ] << 16 | [ lindex $b 14 ] << 8  | [ lindex $b 15 ] ) / 1000.0 ]
+
+  } else {
+
+    # In hardware version 3 or above the length is shorter so that total is not read at all
+    set sem(total) -1
+
+  }
 
   log [ print_measurement ]
 

@@ -1,13 +1,13 @@
 # Characteristics
 
-In order to control the device you need to determine the correct handles by quering the characteristics, e.g. 
+In order to control the device you need to determine the correct handles by quering the characteristics, e.g.
 
 ```
 $ gatttool -b FC:69:47:06:CB:C6 -I
 [FC:69:47:06:CB:C6][LE]> connect
 Attempting to connect to FC:69:47:06:CB:C6
 Connection successful
-[FC:69:47:06:CB:C6][LE]> characteristics 
+[FC:69:47:06:CB:C6][LE]> characteristics
 ...
 handle: 0x0002, char properties: 0x02, char value handle: 0x0003, uuid: 00002a00-0000-1000-8000-00805f9b34fb
 ...
@@ -31,15 +31,15 @@ Note: The handles can be different. They relate on firmware and hardware version
 ```
 char-read-hnd 0025
 
-Characteristic value/descriptor: 56 4f 4c 43 46 54 04 00 00 00 00 01 0d 02 00 1e 
+Characteristic value/descriptor: 56 4f 4c 43 46 54 04 00 00 00 00 01 0d 02 00 1e
                                  |                                |     + Hardware version (2 bytes for major and minor), here: 2.0
                                  |                                + Firmware version (2 bytes for major and minor), here: 1.13
                                  + Vendor string in ASCII (6 bytes)
 ```
 
 # Hardware version and MTU
-If you have a device with hardware version 2 or lower you will get multiple notifications per request which depends on the type of request. 
-If you have a device with hardware version 3 or above you MUST set the so called MTU so that the package size of notifications is set to 160 bytes. Then you get always just one notification per request. 
+If you have a device with hardware version 2 or lower you will get multiple notifications per request which depends on the type of request.
+If you have a device with hardware version 3 or above you MUST set the so called MTU so that the package size of notifications is set to 160 bytes. Then you get always just one notification per request.
 
 ```
 mtu 160
@@ -378,13 +378,13 @@ Notification handle = 0x2e value: 0f 10 14 00 01 0c 01 01 00 13 08 09 0a 0b 00 0
                                   |  |  |     |  |  |  + Action, 1 = turn on, 0 = turn off
                                   |  |  |     |  |  + Active, 0 = inactive, 1 = active
                                   |  |  |     |  + Slot ID
-                                  |  |  |     + Number of active schedulers, here 1 
+                                  |  |  |     + Number of active schedulers, here 1
                                   |  |  + Request schedulers command, 0x1400
                                   |  + Length of payload starting w/ next byte incl. checksum
                                   + static start sequence for message, 0x0f
 ```
 
-If there are more than 1 schedulers set then there are multiple notifications. 
+If there are more than 1 schedulers set then there are multiple notifications.
 ```
 # notification #1
 Notification handle = 0x2e value: 0f 28 14 00 03 0a 01 01 01 13 07 0d 0b 2c 00 00 75 0b 01 00
@@ -409,7 +409,7 @@ Notification handle = 0x2e value: 7f 13 07 0d 0e 0f 00 00 e4 0c 00 01 00 13 08 0
 
 # notification #3
 Notification handle = 0x2e value: 5b 4c ff ff
-``` 
+```
 
 Request 2nd page
 ```
@@ -422,7 +422,7 @@ Notification handle = 0x2e value: 0f 10 14 00 05 0b 01 00 01 13 07 0e 01 01 00 0
 ## Set scheduler
 ```
 char-write-cmd 2b 0f0f1300010001010113070e0e1a000068ffff
-                  | | |   | | | | | | | | | | |   | + Static end sequence of message, 0xffff 
+                  | | |   | | | | | | | | | | |   | + Static end sequence of message, 0xffff
                   | | |   | | | | | | | | | | |   + Checksum byte starting with length-byte, ending w/ byte before
                   | | |   | | | | | | | | | | + Static 0x0000
                   | | |   | | | | | | | | | + Minute
@@ -430,7 +430,7 @@ char-write-cmd 2b 0f0f1300010001010113070e0e1a000068ffff
                   | | |   | | | | | | | + Day of month
                   | | |   | | | | | | + Month, 1 = January
                   | | |   | | | | | + Year, 2 digits, eg. 19 for 2019
-                  | | |   | | | | + Weekday mask, 7 bits, 1st bit = Sunday, ... 
+                  | | |   | | | | + Weekday mask, 7 bits, 1st bit = Sunday, ...
                   | | |   | | | + Action, 1 = turn on, 0 = turn off
                   | | |   | | + State , 1 = active, 0 = inactive
                   | | |   | + If edit / remote scheduler then ID of slot else 0x00
@@ -463,8 +463,8 @@ char-write-cmd 2b 0f0f1300020c0000000000000000000022ffff
 char-write-cmd 0x2b 0f051600000017ffff
 
 Notification handle = 0x2b value: 0f 0b 16 00 01 55 02 03 04 05 00 00 7b ff ff
-                                  |  |  |     |  |  |  |  |  |        |  + Static end sequence of message, 0xffff 
-                                  |  |  |     |  |  |  |  |  |        + Checksum byte starting with length-byte, ending w/ byte before            
+                                  |  |  |     |  |  |  |  |  |        |  + Static end sequence of message, 0xffff
+                                  |  |  |     |  |  |  |  |  |        + Checksum byte starting with length-byte, ending w/ byte before
                                   |  |  |     |  |  |  |  |  + End minute
                                   |  |  |     |  |  |  |  + End hour
                                   |  |  |     |  |  |  + Start minute
@@ -480,7 +480,7 @@ Notification handle = 0x2b value: 0f 0b 16 00 01 55 02 03 04 05 00 00 7b ff ff
 ```
 char-write-cmd 2b 0f0b1500017f020304050000a4ffff
                   | | |   | | | | | |     | + Static end sequence of message, 0xffff
-                  | | |   | | | | | |     + Checksum byte starting with length-byte, ending w/ byte before           
+                  | | |   | | | | | |     + Checksum byte starting with length-byte, ending w/ byte before
                   | | |   | | | | | + End minute
                   | | |   | | | | + End hour
                   | | |   | | | + Start minute
@@ -508,7 +508,7 @@ char-write-cmd 0x2b 0f050400000005ffff
 Notification handle = 0x002e value: 0f 11 04 00 01 00 00 00 eb 00 0c 32 00 00 00 00 00 00 2f
                                     |  |  |     |  |        |  |     |        |           |  + Static end sequence (0xffff) is missing in this notification!
                                     |  |  |     |  |        |  |     |        |           + checksum byte starting with length-byte
-                                    |  |  |     |  |        |  |     |        + total consumption, 4 bytes
+                                    |  |  |     |  |        |  |     |        + total consumption, 4 bytes (always 0 for hardware versions < 3)
                                     |  |  |     |  |        |  |     + frequency (Hz)
                                     |  |  |     |  |        |  + Ampere/1000 (A), 2 bytes
                                     |  |  |     |  |        + Voltage (V)
@@ -522,6 +522,28 @@ Notification handle = 0x002e value: 0f 11 04 00 01 00 00 00 eb 00 0c 32 00 00 00
 
 Note: Typical 0xffff end sequence is missing in this response. This is probably since there is no room for it.
 
+Starting with hardware version 3 the reported length is shorter, i.e. ```0x0f``` instead of ```0xff```.
+
+A notification looks like this:
+```
+                                        +- Length of payload starting w/ next byte. -+
+                                        |                                            |
+Notification handle = 0x0014 value: 0f 0f 04 00 01 00 88 50 dc 00 d6 32 01 00 00 00 00 67 2a
+                                    |     |     |  |        |  |     |        |           |  + Static end sequence (0xffff) is missing in this notification!
+                                    |     |     |  |        |  |     |        |           + checksum byte starting with length-byte
+                                    |  |  |     |  |        |  |     |        + total consumption, 4 bytes (hardware versions >= 3 there is a value)
+                                    |     |     |  |        |  |     + frequency (Hz)
+                                    |     |     |  |        |  + Ampere/1000 (A), 2 bytes
+                                    |     |     |  |        + Voltage (V)
+                                    |     |     |  |
+                                    |     |     |  + Watt/1000, 3 bytes
+                                    |     |     + Power, 0 = off, 1 = on
+                                    |     + Capture measurement response 0x0400
+                                    + static start sequence for message, 0x0f
+```
+
+
+
 ## Reguest measurements for year, month and day
 ```
 char-write-cmd 2b 0f050b0000000cffff
@@ -534,10 +556,10 @@ char-write-cmd 2b 0f050b0000000cffff
 
 ```
 
-After this request there are several notification handles. 
+After this request there are several notification handles.
 
 ### Year
-For requests on year level there are 12 records for each month. Each records has 4 bytes and 3 bytes representing for consumption in Wh. 
+For requests on year level there are 12 records for each month. Each records has 4 bytes and 3 bytes representing for consumption in Wh.
 
 ```
 Notification handle = 0x002e value: 0f 33 0c 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -565,7 +587,7 @@ Notification handle = 0x002e value: 00 00 00 00 00 00 00 00 00 04 e3 00 f4 ff ff
 ```
 
 ### Month
-For requests on month level there are 30 records for each day in month. Each records has 4 bytes and 3 bytes  representing for consumption in Wh. 
+For requests on month level there are 30 records for each day in month. Each records has 4 bytes and 3 bytes  representing for consumption in Wh.
 
 ```
 Notification handle = 0x002e value: 0f 7b 0b 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00
@@ -589,7 +611,7 @@ Notification handle = 0x002e value: 00 00 6f 00 f2 ff ff
 ```
 
 ### Day
-For requests on day level there are 24 records for each hour in day. Each records has 2 bytes representing for consumption in Wh. 
+For requests on day level there are 24 records for each hour in day. Each records has 2 bytes representing for consumption in Wh.
 
 ```
 Notification handle = 0x002e value: 0f 33 0a 00 00 0e 00 0e 00 0e 00 0e 00 0c 00 09 00 08 00 0b
