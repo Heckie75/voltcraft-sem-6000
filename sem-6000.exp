@@ -1059,7 +1059,7 @@ proc current_time_str {} {
 
 proc current_datetime_str {} {
 
-  return [ clock format [ expr [ clock seconds ] - [ time_offset ] ] -format "%Y-%m-%d %H:%M:%S" ]
+  return [ clock format [ expr [ clock seconds ] - [ time_offset ] ] -format "%Y-%m-%d %H:%M:%S" -timezone :GMT ]
 
 }
 
