@@ -368,6 +368,12 @@ The smart energy meter monitors power consumption continuously. It can automatic
 
 ## Measurements
 
+*Note*: It is required to execute the ```sync``` command before you can start any measurements:
+
+```
+$ ./sem-6000.exp fridge --sync
+```
+
 ### Snapshot
 
 If you want to take and print a single measurement, just call the status command:
