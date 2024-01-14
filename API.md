@@ -51,7 +51,7 @@ MTU was exchanged successfully: 160
 ```
 char-write-cmd 0x2b 0f0c170000000000000000000018ffff
                     | | |   | |     | |       | +  static end sequence of message, 0xffff
-                    | | |   | |     | |       + checksum byte starting with length-byte, ending w/ byte before
+                    | | |   | |     | |       + checksum byte starting after length-byte, ending w/ byte before
                     | | |   | |     | + always 0x00000000
                     | | |   | + PIN, 4 bytes e.g. 01020304
                     | | |   + 0x00 for authorization request
@@ -75,7 +75,7 @@ Notification handle = 0x002e value: 0f 06 17 00 00 00 00 18 ff ff
 ```
 char-write-cmd 0x2b 0f0c170001010203040000000018ffff
                     | | |     |       |       | +  static end sequence of message, 0xffff
-                    | | |     |       |       + checksum byte starting with length-byte, ending w/ byte before
+                    | | |     |       |       + checksum byte starting after length-byte, ending w/ byte before
                     | | |     |       + old PIN, 4 bytes e.g. 01020304
                     | | |     + new PIN, 4 bytes e.g. 01020304
                     | | + Change pin command 0x170001
@@ -96,7 +96,7 @@ Notification handle = 0x002e value: 0f 06 17 00 00 01 00 18 ff ff
 ```
 char-write-cmd 0x2b 0f0c170002000000000000000018ffff
                     | | |   | |               | +  static end sequence of message, 0xffff
-                    | | |   | |               + checksum byte starting with length-byte, ending w/ byte before
+                    | | |   | |               + checksum byte starting after length-byte, ending w/ byte before
                     | | |   | + static 0x0000000000000000
                     | | |   + 0x02 for reset PIN
                     | | + Authorization command 0x1700
@@ -118,7 +118,7 @@ Notification handle = 0x002e value: 0f 06 17 00 00 02 00 18 ff ff
 ```
 char-write-cmd 0x2b 0f0c010029180a160607e3000053ffff
                     | | |   | | | | | | | |   | + always 0xffff
-                    | | |   | | | | | | | |   + checksum byte starting with length-byte
+                    | | |   | | | | | | | |   + checksum byte starting after length-byte
                     | | |   | | | | | | | + always 0000
                     | | |   | | | | | +-+ year, high-byte, low-byte
                     | | |   | | | | + month
@@ -143,7 +143,7 @@ Notification handle = 0x002e value: 0f 04 01 00 00 02 ff ff
 ```
 char-write-cmd 0x2b 0f051000000011ffff
                     | | |   |   | + always ffff
-                    | | |   |   + checksum byte starting with length-byte
+                    | | |   |   + checksum byte starting after length-byte
                     | | |   + always 0000
                     | | + Request settings command, 0x1000
                     | + Length of payload starting w/ next byte incl. checksum
@@ -171,7 +171,7 @@ Notification handle = 0x002e value: 0f 0e 10 00 00 c8 64 00 00 00 00 01 00 0e 60
 ```
 char-write-cmd 0x2b 0f090f0005010000000016ffff
                     | | |   | | |       | + always 0xffff
-                    | | |   | | |       + checksum byte starting with length-byte
+                    | | |   | | |       + checksum byte starting after length-byte
                     | | |   | | + always 0x00000000
                     | | |   | + 1 = on, 0 = off
                     | | |   + always 0x05
@@ -192,7 +192,7 @@ Notification handle = 0x002e value: 0f 05 0f 00 05 00 15 ff ff
 ```
 char-write-cmd 2b 0f0705000e60000074ffff
                   | | |   |   |   | + static end sequence of message, 0xffff
-                  | | |   |   |   + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   |   |   + checksum byte starting after length-byte, ending w/ byte before
                   | | |   |   + status 0x0000
                   | | |   + overload value, low-byte
                   | | | + overload value, high-byte
@@ -255,7 +255,7 @@ Notification handle = 0x2b value: 0f 05 0f 00 01 00 11 ff ff
 ```
 char-write-cmd 0x2b 0f06030000000004ffff
                     | | |   | |   | + static end sequence of message, 0xffff
-                    | | |   | |   + checksum byte starting with length-byte, ending w/ byte before
+                    | | |   | |   + checksum byte starting after length-byte, ending w/ byte before
                     | | |   | + Static 0x0000
                     | | |   + 0x01 = turn on, 0x00 = turn off
                     | | + Switch command 0x0300
@@ -297,7 +297,7 @@ Notification handle = 0x2b value: 0f 0e 09 00 01 10 04 10 08 07 13 01 51 45 00 e
 ```
 char-write-cmd 2b 0f0c0800012d1c1607071300008affff
                   | | |   | | | | | | | |   | + static end sequence of message, 0xffff
-                  | | |   | | | | | | | |   + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   | | | | | | | |   + checksum byte starting after length-byte, ending w/ byte before
                   | | |   | | | | | | | + Static 0x0000
                   | | |   | | | | | | + Schedule year
                   | | |   | | | | | + Schedule month
@@ -322,7 +322,7 @@ Notification handle = 0x2b value: 0f 04 08 00 00 09 ff ff
 ```
 char-write-cmd 2b 0f0c080000000000000000000009ffff
                   | | |   | | | | | | | |   | + static end sequence of message, 0xffff
-                  | | |   | | | | | | | |   + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   | | | | | | | |   + checksum byte starting after length-byte, ending w/ byte before
                   | | |   | | | | | | | + Static 0x0000
                   | | |   | | | | | | + Schedule year, 0 for reset
                   | | |   | | | | | + Schedule month, 0 for reset
@@ -350,7 +350,7 @@ No schedulers set
 ```
 char-write-cmd 2b 0f06140000000015ffff
                   | | |   |     | + static end sequence of message, 0xffff
-                  | | |   |     + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   |     + checksum byte starting after length-byte, ending w/ byte before
                   | | |   + Page if more than 4 schedulers, 0 = 1st page , 1 = 2nd page
                   | | + Request schedulers command, 0x1400
                   | + Length of payload starting w/ next byte incl. checksum
@@ -423,7 +423,7 @@ Notification handle = 0x2e value: 0f 10 14 00 05 0b 01 00 01 13 07 0e 01 01 00 0
 ```
 char-write-cmd 2b 0f0f1300010001010113070e0e1a000068ffff
                   | | |   | | | | | | | | | | |   | + Static end sequence of message, 0xffff
-                  | | |   | | | | | | | | | | |   + Checksum byte starting with length-byte, ending w/ byte before
+                  | | |   | | | | | | | | | | |   + Checksum byte starting after length-byte, ending w/ byte before
                   | | |   | | | | | | | | | | + Static 0x0000
                   | | |   | | | | | | | | | + Minute
                   | | |   | | | | | | | | + Hour
@@ -480,7 +480,7 @@ Notification handle = 0x2b value: 0f 0b 16 00 01 55 02 03 04 05 00 00 7b ff ff
 ```
 char-write-cmd 2b 0f0b1500017f020304050000a4ffff
                   | | |   | | | | | |     | + Static end sequence of message, 0xffff
-                  | | |   | | | | | |     + Checksum byte starting with length-byte, ending w/ byte before
+                  | | |   | | | | | |     + Checksum byte starting after length-byte, ending w/ byte before
                   | | |   | | | | | + End minute
                   | | |   | | | | + End hour
                   | | |   | | | + Start minute
@@ -499,7 +499,7 @@ Notification handle = 0x2b value: 0f 04 15 00 00 16 ff ff
 ```
 char-write-cmd 0x2b 0f050400000005ffff
                     | | |       | + static end sequence of message, 0xffff
-                    | | |       + checksum byte starting with length-byte, ending w/ byte before
+                    | | |       + checksum byte starting after length-byte, ending w/ byte before
                     | | + Capture measurement command 0x040000
                     | + Length of payload starting w/ next byte incl. checksum
                     + static start sequence for message, 0x0f
@@ -548,7 +548,7 @@ Notification handle = 0x0014 value: 0f 0f 04 00 01 00 88 50 dc 00 d6 32 01 00 00
 ```
 char-write-cmd 2b 0f050b0000000cffff
                   | | | |     | + static end sequence of message, 0xffff
-                  | | | |     + checksum byte starting with length-byte, ending w/ byte before
+                  | | | |     + checksum byte starting after length-byte, ending w/ byte before
                   | | | + Static 0x000000
                   | | + 0a = last 24h per hour, 0b = last 30 days per day, 0c = last year per month
                   | + Length of payload starting w/ next byte incl. checksum
@@ -639,7 +639,7 @@ Notification handle = 0x002e value: 00 0e 00 0e 00 0e 00 0e 00 0d 00 00 42 ff ff
 ```
 char-write-cmd 2b 0f090f0000000000000010ffff
                   | | |   |           | + static end sequence of message, 0xffff
-                  | | |   |           + checksum byte starting with length-byte, ending w/ byte before
+                  | | |   |           + checksum byte starting after length-byte, ending w/ byte before
                   | | |   + 0 = factory reset, 2 = reset stored consumption
                   | | + Reset command 0x0f00
                   | + Length of payload starting w/ next byte incl. checksum
