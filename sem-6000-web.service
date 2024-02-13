@@ -1,0 +1,11 @@
+[Unit]
+Description=voltcraft sem-6000 web control
+After=bluetooth.target
+
+[Service]
+User=pi
+WorkingDirectory=/home/pi/voltcraft-sem-6000
+ExecStart=/usr/bin/python3 sem-6000-web.py
+
+[Install]
+WantedBy=multi-user.target
